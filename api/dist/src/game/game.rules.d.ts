@@ -1,0 +1,13 @@
+export declare const REVEAL_QUOTA_BY_ROUND: Record<number, number>;
+export declare const ALWAYS_HIDDEN_COUNT = 1;
+export declare function revealQuotaForRound(round: number): number;
+export declare const MIN_PRESENTATION_SEC = 60;
+export declare const MAX_PRESENTATION_SEC = 180;
+export declare const DEFAULT_PRESENTATION_SEC = 60;
+export declare const MIN_VOTING_SEC = 30;
+export declare const MAX_VOTING_SEC = 180;
+export declare const DEFAULT_VOTING_SEC = 60;
+export declare const MIN_REVEAL_SEC = 30;
+export declare const MAX_REVEAL_SEC = 300;
+export declare const DEFAULT_REVEAL_SEC = 90;
+export declare const VOTE_RESULT_AUTO_SEC = 12;

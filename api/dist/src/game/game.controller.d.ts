@@ -1,0 +1,928 @@
+import { GameService } from './game.service';
+import { EventsGateway } from '../realtime/events.gateway';
+import { MockBotsService } from './mocks/mock-bots.service';
+export declare class GameController {
+    private readonly game;
+    private readonly mocks;
+    private readonly events;
+    constructor(game: GameService, mocks: MockBotsService, events: EventsGateway);
+    private wrap;
+    private afterRoomChange;
+    createRoom(userId: string, body: {
+        name: string;
+        maxPlayers?: number;
+        presentationDurationSec?: number;
+        votingDurationSec?: number;
+        revealDurationSec?: number;
+        packageId?: string;
+        discussionDurationSec?: number;
+    }): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        player: {
+            id: string;
+            name: string;
+            userId: string;
+            roomId: string;
+            role: string;
+            status: string;
+            joinedAt: Date;
+            lastSeenAt: Date | null;
+            eliminatedAt: Date | null;
+        };
+    }>;
+    joinRoom(userId: string, body: {
+        code: string;
+        name: string;
+    }): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        player: {
+            id: string;
+            name: string;
+            userId: string;
+            roomId: string;
+            role: string;
+            status: string;
+            joinedAt: Date;
+            lastSeenAt: Date | null;
+            eliminatedAt: Date | null;
+        };
+        rejoined: boolean;
+    }>;
+    getRoom(userId: string, code: string): Promise<{
+        room: {
+            id: string;
+            code: string;
+            host_player_id: string | null;
+            status: import("./game.types").GameStatus;
+            current_round: number;
+            max_players: number;
+            shelter_capacity: number | null;
+            package_id: string | null;
+            disaster_id: string | null;
+            bunker_id: string | null;
+            discussion_duration_sec: number;
+            presentation_duration_sec: number;
+            voting_duration_sec: number;
+            reveal_duration_sec: number;
+            presentation_player_id: string | null;
+            presentation_order: string[];
+            phase_ends_at: string | null;
+            paused_at: string | null;
+            pause_remaining_ms: number | null;
+            is_paused: boolean;
+            reveal_quota: number;
+            voting_candidate_ids: string[];
+            last_vote_summary: {};
+            created_at: string;
+            updated_at: string;
+        };
+        players: {
+            id: string;
+            room_id: string;
+            user_id: string;
+            name: string;
+            role: string;
+            status: string;
+            joined_at: string;
+            last_seen_at: string | null;
+            eliminated_at: string | null;
+        }[];
+        me: {
+            id: string;
+            room_id: string;
+            user_id: string;
+            name: string;
+            role: string;
+            status: string;
+            joined_at: string;
+            last_seen_at: string | null;
+            eliminated_at: string | null;
+        };
+        disaster: {
+            id: string;
+            title: string;
+            description: string;
+            is_active: boolean;
+        } | null;
+        bunker: {
+            id: string;
+            title: string;
+            description: string;
+            is_active: boolean;
+        } | null;
+        characteristics: {
+            id: string;
+            room_id: string;
+            player_id: string;
+            characteristic_id: string;
+            category: import("./game.types").CharacteristicCategory;
+            is_revealed: boolean;
+            revealed_round: number | null;
+            revealed_at: string | null;
+            characteristic: {
+                id: string;
+                category: import("./game.types").CharacteristicCategory;
+                title: string;
+                description: string | null;
+                rarity: import("./game.rarity").TraitRarity;
+                is_active: boolean;
+            };
+        }[];
+        action_cards: {
+            id: string;
+            room_id: string;
+            player_id: string;
+            action_card_id: string;
+            is_used: boolean;
+            used_at: string | null;
+            used_round: number | null;
+            action_card: {
+                id: string;
+                effect_type: string;
+                title: string;
+                description: string;
+            };
+        }[];
+        finish_stats: {
+            shelter_capacity: number | null;
+            max_round: number;
+            players: import("./game.rarity").PlayerFinishStat[];
+        } | null;
+        events: {
+            id: string;
+            room_id: string;
+            round: number | null;
+            type: string;
+            payload: {};
+            created_at: string;
+        }[];
+        votes: {
+            id: string;
+            room_id: string;
+            round: number;
+            voter_id: string;
+            target_player_id: string;
+            created_at: string;
+        }[];
+        myVote: {
+            id: string;
+            room_id: string;
+            round: number;
+            voter_id: string;
+            target_player_id: string;
+            created_at: string;
+        } | null;
+        vote_progress: {
+            cast: number;
+            total: number;
+        };
+        mocks_enabled: boolean;
+    }>;
+    removePlayer(userId: string, roomId: string, body: {
+        playerId: string;
+    }): Promise<{
+        ok: boolean;
+    }>;
+    addMockPlayers(userId: string, roomId: string, body?: {
+        count?: number;
+    }): Promise<{
+        added: number;
+        players: {
+            id: string;
+            name: string;
+            userId: string;
+            roomId: string;
+            role: string;
+            status: string;
+            joinedAt: Date;
+            lastSeenAt: Date | null;
+            eliminatedAt: Date | null;
+        }[];
+    }>;
+    runBots(userId: string, roomId: string): Promise<{
+        acted: number;
+        status: string;
+    }>;
+    start(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already_started: boolean;
+        disaster?: undefined;
+        bunker?: undefined;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        disaster: {
+            id: string;
+            title: string;
+            description: string;
+            isActive: boolean;
+            packageId: string;
+        };
+        bunker: {
+            id: string;
+            title: string;
+            description: string;
+            isActive: boolean;
+            packageId: string;
+        };
+        already_started?: undefined;
+    }>;
+    reveal(userId: string, roomId: string, body: {
+        playerCharacteristicId: string;
+    }): Promise<{
+        player_characteristic: {
+            id: string;
+            category: string;
+            roomId: string;
+            playerId: string;
+            isRevealed: boolean;
+            revealedRound: number | null;
+            characteristicId: string;
+            revealedAt: Date | null;
+        };
+        already_revealed: true;
+    } | {
+        player_characteristic: {
+            id: string;
+            category: string;
+            roomId: string;
+            playerId: string;
+            isRevealed: boolean;
+            revealedRound: number | null;
+            characteristicId: string;
+            revealedAt: Date | null;
+        };
+        already_revealed?: undefined;
+    }>;
+    playAction(userId: string, roomId: string, body: {
+        playerActionCardId: string;
+        category?: string;
+        targetPlayerId?: string;
+    }): Promise<{
+        ok: boolean;
+        summary: Record<string, unknown>;
+    }>;
+    discussion(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    presentation(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    advancePresentation(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    pause(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    resume(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    startVoting(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    submitVote(userId: string, roomId: string, body: {
+        targetPlayerId: string;
+    }): Promise<{
+        vote: {
+            id: string;
+            createdAt: Date;
+            roomId: string;
+            round: number;
+            voterId: string;
+            targetPlayerId: string;
+        };
+        already_voted: boolean;
+        progress: {
+            cast: number;
+            total: number;
+        };
+    } | {
+        vote: {
+            id: string;
+            createdAt: Date;
+            roomId: string;
+            round: number;
+            voterId: string;
+            targetPlayerId: string;
+        };
+        progress: {
+            cast: number;
+            total: number;
+        };
+        already_voted?: undefined;
+    }>;
+    completeVoting(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+        tie?: undefined;
+        summary?: undefined;
+        eliminated_player_id?: undefined;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        tie: boolean;
+        summary: {
+            player_id: string;
+            votes: number;
+        }[];
+        already?: undefined;
+        eliminated_player_id?: undefined;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        eliminated_player_id: string;
+        summary: {
+            player_id: string;
+            votes: number;
+        }[];
+        tie: boolean;
+        already?: undefined;
+    }>;
+    nextRound(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+    finish(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+    } | {
+        room: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            packageId: string | null;
+            code: string;
+            status: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already?: undefined;
+    }>;
+}

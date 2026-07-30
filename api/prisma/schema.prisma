@@ -1,0 +1,234 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  players   Player[]
+}
+
+/// Content pack: classic / meme / mature / custom
+model ContentPackage {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String   @default("")
+  /// everyone | teen | mature | explicit
+  rating      String   @default("everyone")
+  /// classic | meme | horror | custom | ...
+  topic       String   @default("classic")
+  isActive    Boolean  @default(true) @map("is_active")
+  isBuiltin   Boolean  @default(false) @map("is_builtin")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  disasters        Disaster[]
+  bunkers          Bunker[]
+  characteristics  Characteristic[]
+  actionCards      ActionCard[]
+  rooms            Room[]
+
+  @@index([isActive, sortOrder])
+  @@map("content_packages")
+}
+
+model Disaster {
+  id          String  @id @default(cuid())
+  packageId   String  @map("package_id")
+  title       String
+  description String
+  isActive    Boolean @default(true) @map("is_active")
+  rooms       Room[]
+
+  package ContentPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, isActive])
+  @@map("disasters")
+}
+
+model Bunker {
+  id          String  @id @default(cuid())
+  packageId   String  @map("package_id")
+  title       String
+  description String
+  isActive    Boolean @default(true) @map("is_active")
+  rooms       Room[]
+
+  package ContentPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, isActive])
+  @@map("bunkers")
+}
+
+model Characteristic {
+  id          String  @id @default(cuid())
+  packageId   String  @map("package_id")
+  category    String
+  title       String
+  description String?
+  /// common | uncommon | rare | epic | legendary | mythic (legacy: unique → mythic)
+  rarity      String  @default("common")
+  isActive    Boolean @default(true) @map("is_active")
+  assigned    PlayerCharacteristic[]
+
+  package ContentPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, category, isActive])
+  @@index([packageId, rarity])
+  @@map("characteristics")
+}
+
+/// Special one-shot ability dealt separately from traits
+model ActionCard {
+  id          String  @id @default(cuid())
+  packageId   String  @map("package_id")
+  /// swap_characteristic | reroll_characteristic | force_reveal
+  effectType  String  @map("effect_type")
+  title       String
+  description String
+  isActive    Boolean @default(true) @map("is_active")
+  assigned    PlayerActionCard[]
+
+  package ContentPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, isActive])
+  @@map("action_cards")
+}
+
+model Room {
+  id                     String    @id @default(cuid())
+  code                   String    @unique
+  hostPlayerId           String?   @map("host_player_id")
+  status                 String    @default("lobby")
+  currentRound           Int       @default(0) @map("current_round")
+  maxPlayers             Int       @map("max_players")
+  shelterCapacity        Int?      @map("shelter_capacity")
+  packageId              String?   @map("package_id")
+  disasterId             String?   @map("disaster_id")
+  bunkerId               String?   @map("bunker_id")
+  /// @deprecated kept for old DBs; use presentationDurationSec
+  discussionDurationSec  Int       @default(120) @map("discussion_duration_sec")
+  presentationDurationSec Int      @default(60) @map("presentation_duration_sec")
+  votingDurationSec      Int       @default(60) @map("voting_duration_sec")
+  revealDurationSec      Int       @default(90) @map("reveal_duration_sec")
+  presentationPlayerId   String?   @map("presentation_player_id")
+  presentationOrderJson  String    @default("[]") @map("presentation_order_json")
+  phaseEndsAt            DateTime? @map("phase_ends_at")
+  pausedAt               DateTime? @map("paused_at")
+  pauseRemainingMs       Int?      @map("pause_remaining_ms")
+  votingCandidateIdsJson String    @default("[]") @map("voting_candidate_ids_json")
+  lastVoteSummaryJson    String    @default("{}") @map("last_vote_summary_json")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  package               ContentPackage?        @relation(fields: [packageId], references: [id])
+  disaster              Disaster?              @relation(fields: [disasterId], references: [id])
+  bunker                Bunker?                @relation(fields: [bunkerId], references: [id])
+  players               Player[]
+  playerCharacteristics PlayerCharacteristic[]
+  playerActionCards     PlayerActionCard[]
+  votes                 Vote[]
+  events                GameEvent[]
+
+  @@map("rooms")
+}
+
+model Player {
+  id           String    @id @default(cuid())
+  roomId       String    @map("room_id")
+  userId       String    @map("user_id")
+  name         String
+  role         String
+  status       String    @default("active")
+  joinedAt     DateTime  @default(now()) @map("joined_at")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  eliminatedAt DateTime? @map("eliminated_at")
+
+  room            Room                   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characteristics PlayerCharacteristic[]
+  actionCards     PlayerActionCard[]
+  votesCast       Vote[]                 @relation("VoterVotes")
+  votesReceived   Vote[]                 @relation("TargetVotes")
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("players")
+}
+
+model PlayerCharacteristic {
+  id               String    @id @default(cuid())
+  roomId           String    @map("room_id")
+  playerId         String    @map("player_id")
+  characteristicId String    @map("characteristic_id")
+  category         String
+  isRevealed       Boolean   @default(false) @map("is_revealed")
+  revealedRound    Int?      @map("revealed_round")
+  revealedAt       DateTime? @map("revealed_at")
+
+  room           Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  player         Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  characteristic Characteristic @relation(fields: [characteristicId], references: [id])
+
+  @@unique([playerId, characteristicId])
+  @@unique([playerId, category])
+  @@index([roomId])
+  @@map("player_characteristics")
+}
+
+model PlayerActionCard {
+  id           String    @id @default(cuid())
+  roomId       String    @map("room_id")
+  playerId     String    @map("player_id")
+  actionCardId String    @map("action_card_id")
+  isUsed       Boolean   @default(false) @map("is_used")
+  usedAt       DateTime? @map("used_at")
+  usedRound    Int?      @map("used_round")
+
+  room       Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  actionCard ActionCard @relation(fields: [actionCardId], references: [id])
+
+  @@index([roomId, playerId])
+  @@map("player_action_cards")
+}
+
+model Vote {
+  id             String   @id @default(cuid())
+  roomId         String   @map("room_id")
+  round          Int
+  voterId        String   @map("voter_id")
+  targetPlayerId String   @map("target_player_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  voter  Player @relation("VoterVotes", fields: [voterId], references: [id], onDelete: Cascade)
+  target Player @relation("TargetVotes", fields: [targetPlayerId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, round, voterId])
+  @@index([roomId, round])
+  @@map("votes")
+}
+
+model GameEvent {
+  id        String   @id @default(cuid())
+  roomId    String   @map("room_id")
+  round     Int?
+  type      String
+  payload   String   @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("game_events")
+}

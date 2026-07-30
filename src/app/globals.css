@@ -1,26 +1,582 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans), "IBM Plex Sans", sans-serif;
+  --font-mono: var(--font-geist-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --font-heading: var(--font-display), "Unbounded", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  /* Lifted ash palette — still night, less “black hole” mud */
+  --background: oklch(0.22 0.014 55);
+  --foreground: oklch(0.95 0.01 80);
+  --card: oklch(0.28 0.016 55);
+  --card-foreground: oklch(0.95 0.01 80);
+  --popover: oklch(0.28 0.016 55);
+  --popover-foreground: oklch(0.95 0.01 80);
+  --primary: oklch(0.82 0.13 75);
+  --primary-foreground: oklch(0.2 0.02 55);
+  --secondary: oklch(0.34 0.018 55);
+  --secondary-foreground: oklch(0.95 0.01 80);
+  --muted: oklch(0.32 0.014 55);
+  --muted-foreground: oklch(0.76 0.02 70);
+  --accent: oklch(0.36 0.035 55);
+  --accent-foreground: oklch(0.96 0.015 80);
+  --destructive: oklch(0.68 0.18 25);
+  --border: oklch(0.92 0.02 70 / 18%);
+  --input: oklch(0.92 0.02 70 / 22%);
+  --ring: oklch(0.78 0.11 75);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Hide scrollbars while keeping scroll (room panels, Mac overlay bars) */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Animate shadcn Resizable side panels on collapse/expand (not while dragging) */
+.room-resizable [data-panel] {
+  transition:
+    flex-grow 220ms ease-out,
+    flex-basis 220ms ease-out;
+}
+.room-resizable:has([data-separator]:active) [data-panel] {
+  transition: none;
+}
+
+/* ——— Game vibe: bunker HUD motions ——— */
+
+@keyframes bunker-phase-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bunker-trait-reveal {
+  0% {
+    transform: rotateX(72deg) scale(0.96);
+    filter: brightness(0.45);
+  }
+  55% {
+    transform: rotateX(-8deg) scale(1.02);
+    filter: brightness(1.15);
+  }
+  100% {
+    transform: rotateX(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes bunker-action-strike {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  35% {
+    transform: scale(1.04) rotate(-1.5deg);
+  }
+  70% {
+    transform: scale(0.98) rotate(1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes bunker-timer-urgent {
+  0%,
+  100% {
+    border-color: color-mix(in oklab, var(--destructive) 55%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 0%, transparent);
+  }
+  50% {
+    border-color: color-mix(in oklab, var(--destructive) 85%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--destructive) 18%, transparent);
+  }
+}
+
+@keyframes bunker-scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(220%);
+  }
+}
+
+@keyframes bunker-embers {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.bunker-phase-enter {
+  animation: bunker-phase-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bunker-trait-reveal {
+  transform-style: preserve-3d;
+  animation: bunker-trait-reveal 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bunker-action-strike {
+  animation: bunker-action-strike 480ms ease-out both;
+}
+
+.bunker-timer-urgent {
+  animation: bunker-timer-urgent 1.1s ease-in-out infinite;
+}
+
+.bunker-atmosphere {
+  position: relative;
+  isolation: isolate;
+}
+
+.bunker-atmosphere::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.45;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(180, 90, 30, 0.28), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 85% 90%, rgba(60, 30, 15, 0.35), transparent 50%),
+    linear-gradient(180deg, #16120f 0%, #1f1914 45%, #14110e 100%);
+  animation: bunker-embers 7s ease-in-out infinite;
+}
+
+.bunker-atmosphere::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.07;
+  background-image:
+    linear-gradient(rgba(255, 220, 170, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 220, 170, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+}
+
+.bunker-hazard-stripe {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(245, 158, 11, 0.16),
+    rgba(245, 158, 11, 0.16) 8px,
+    rgba(28, 25, 23, 0.35) 8px,
+    rgba(28, 25, 23, 0.35) 16px
+  );
+}
+
+.bunker-scan {
+  position: relative;
+  overflow: hidden;
+}
+
+.bunker-scan::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 35%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(251, 191, 36, 0.08),
+    transparent
+  );
+  animation: bunker-scanline 4.5s linear infinite;
+}
+
+/* Corner brackets */
+.bunker-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgba(245, 158, 11, 0.45);
+  border-style: solid;
+  z-index: 1;
+}
+.bunker-corner-tl {
+  top: 6px;
+  left: 6px;
+  border-width: 2px 0 0 2px;
+}
+.bunker-corner-tr {
+  top: 6px;
+  right: 6px;
+  border-width: 2px 2px 0 0;
+}
+.bunker-corner-bl {
+  bottom: 6px;
+  left: 6px;
+  border-width: 0 0 2px 2px;
+}
+.bunker-corner-br {
+  bottom: 6px;
+  right: 6px;
+  border-width: 0 2px 2px 0;
+}
+
+.bunker-stamp {
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(251, 146, 60, 0.45);
+  transform: rotate(-12deg);
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  padding: 0.2rem 0.45rem;
+  line-height: 1.2;
+}
+
+.bunker-watermark {
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(245, 158, 11, 0.045);
+  transform: rotate(-18deg);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.bunker-rivet {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #d6d3d1, #57534e 55%, #1c1917);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+.bunker-dust {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+@keyframes finale-stat-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.finale-stat-card {
+  animation: finale-stat-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ——— Trait tiles: rarity finish (TCG-inspired) + sealed/open ——— */
+
+.trait-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  transition:
+    border-color 280ms ease,
+    box-shadow 280ms ease,
+    filter 280ms ease,
+    transform 200ms ease;
+}
+
+.trait-tile::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.55;
+  mix-blend-mode: soft-light;
+}
+
+.trait-tile::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Sealed: concrete hatch + dim */
+.trait-state-sealed {
+  background-color: oklch(0.2 0.01 55);
+  border-color: oklch(0.38 0.01 60 / 55%);
+  filter: saturate(0.75) brightness(0.92);
+}
+.trait-state-sealed::after {
+  background-image: repeating-linear-gradient(
+    -48deg,
+    transparent,
+    transparent 5px,
+    rgba(0, 0, 0, 0.22) 5px,
+    rgba(0, 0, 0, 0.22) 6px
+  );
+  opacity: 0.55;
+}
+
+/* Open: lift the finish */
+.trait-state-open {
+  filter: none;
+  background-color: oklch(0.26 0.014 55);
+  border-color: oklch(0.55 0.02 70 / 40%);
+}
+.trait-state-open::after {
+  opacity: 0;
+}
+
+/* Rarity finishes — texture + metal cue (not category rainbow) */
+.trait-rarity-common::before {
+  background: linear-gradient(160deg, rgba(120, 113, 108, 0.2), transparent 60%);
+}
+.trait-rarity-common.trait-state-open {
+  border-color: oklch(0.5 0.01 60 / 45%);
+}
+
+.trait-rarity-uncommon::before {
+  background:
+    linear-gradient(135deg, rgba(212, 212, 216, 0.22), transparent 45%),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 3px,
+      rgba(255, 255, 255, 0.03) 3px,
+      rgba(255, 255, 255, 0.03) 4px
+    );
+}
+.trait-rarity-uncommon.trait-state-open {
+  border-color: oklch(0.72 0.01 260 / 40%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.trait-rarity-rare::before {
+  background:
+    linear-gradient(120deg, rgba(56, 189, 248, 0.2), transparent 40%, rgba(14, 165, 233, 0.12)),
+    repeating-linear-gradient(
+      -20deg,
+      transparent,
+      transparent 8px,
+      rgba(125, 211, 252, 0.06) 8px,
+      rgba(125, 211, 252, 0.06) 9px
+    );
+}
+.trait-rarity-rare.trait-state-open {
+  border-color: oklch(0.7 0.12 230 / 50%);
+  box-shadow:
+    inset 0 1px 0 rgba(125, 211, 252, 0.15),
+    0 0 20px rgba(14, 165, 233, 0.08);
+}
+
+.trait-rarity-epic::before {
+  background:
+    linear-gradient(145deg, rgba(251, 146, 60, 0.22), transparent 42%, rgba(234, 88, 12, 0.14)),
+    radial-gradient(ellipse at 80% 20%, rgba(253, 186, 116, 0.18), transparent 50%);
+}
+.trait-rarity-epic.trait-state-open {
+  border-color: oklch(0.72 0.14 55 / 55%);
+  box-shadow:
+    inset 0 1px 0 rgba(253, 186, 116, 0.18),
+    0 0 22px rgba(234, 88, 12, 0.1);
+}
+
+.trait-rarity-legendary::before {
+  background:
+    linear-gradient(
+      125deg,
+      rgba(252, 211, 77, 0.28),
+      transparent 35%,
+      rgba(245, 158, 11, 0.16) 70%,
+      rgba(253, 224, 71, 0.12)
+    ),
+    repeating-linear-gradient(
+      35deg,
+      transparent,
+      transparent 10px,
+      rgba(253, 224, 71, 0.07) 10px,
+      rgba(253, 224, 71, 0.07) 11px
+    );
+  animation: trait-foil-shift 5.5s linear infinite;
+}
+.trait-rarity-legendary.trait-state-open {
+  border-color: oklch(0.82 0.14 85 / 60%);
+  box-shadow:
+    inset 0 1px 0 rgba(253, 224, 71, 0.28),
+    0 0 26px rgba(245, 158, 11, 0.14);
+}
+
+.trait-rarity-mythic::before {
+  background:
+    linear-gradient(
+      150deg,
+      rgba(248, 113, 113, 0.26),
+      transparent 38%,
+      rgba(239, 68, 68, 0.14) 65%,
+      rgba(251, 146, 60, 0.16)
+    ),
+    radial-gradient(circle at 20% 80%, rgba(252, 165, 165, 0.2), transparent 45%);
+  animation: trait-foil-shift 4.2s linear infinite;
+}
+.trait-rarity-mythic.trait-state-open {
+  border-color: oklch(0.68 0.18 25 / 58%);
+  box-shadow:
+    inset 0 1px 0 rgba(252, 165, 165, 0.22),
+    0 0 28px rgba(239, 68, 68, 0.12);
+}
+
+@keyframes trait-foil-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+.trait-rarity-legendary::before,
+.trait-rarity-mythic::before {
+  background-size: 200% 200%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bunker-phase-enter,
+  .bunker-trait-reveal,
+  .bunker-action-strike,
+  .bunker-timer-urgent,
+  .bunker-atmosphere::before,
+  .bunker-scan::after,
+  .finale-stat-card,
+  .trait-rarity-legendary::before,
+  .trait-rarity-mythic::before {
+    animation: none !important;
+  }
 }
