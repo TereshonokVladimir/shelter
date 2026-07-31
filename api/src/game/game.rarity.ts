@@ -99,10 +99,18 @@ export interface PlayerFinishStat {
   status: 'active' | 'eliminated' | 'disconnected'
   survived: boolean
   survival_chance: number
+  /** Fit of hand to disaster/bunker themes (−22…26). */
+  theme_fit: number
+  /** Cross-player / self trait synergies. */
+  synergy: number
+  /** Phobia / group tension penalties. */
+  conflict: number
   votes_against: number
   rounds_lasted: number
   rarity_power: number
   rarity_counts: Record<TraitRarity, number>
+  /** Short human-readable reasons for the score. */
+  notes: string[]
 }
 
 export function emptyRarityCounts(): Record<TraitRarity, number> {
@@ -114,23 +122,4 @@ export function emptyRarityCounts(): Record<TraitRarity, number> {
     legendary: 0,
     mythic: 0,
   }
-}
-
-export function computeSurvivalChance(input: {
-  survived: boolean
-  votesAgainst: number
-  roundsLasted: number
-  rarityPower: number
-  maxRound: number
-}): number {
-  const roundFactor = input.maxRound > 0 ? input.roundsLasted / input.maxRound : 0
-  let score =
-    28 +
-    roundFactor * 32 +
-    (input.survived ? 22 : 0) -
-    input.votesAgainst * 11 +
-    Math.min(18, input.rarityPower * 0.7)
-
-  if (!input.survived) score -= 8
-  return Math.max(3, Math.min(97, Math.round(score)))
 }

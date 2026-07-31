@@ -156,8 +156,8 @@ export declare class ContentService {
         title: string;
         description: string | null;
         isActive: boolean;
-        packageId: string;
         category: string;
+        packageId: string;
         rarity: string;
     }>;
     updateCharacteristic(id: string, input: {
@@ -170,8 +170,8 @@ export declare class ContentService {
         title: string;
         description: string | null;
         isActive: boolean;
-        packageId: string;
         category: string;
+        packageId: string;
         rarity: string;
     }>;
     deleteCharacteristic(id: string): Promise<{

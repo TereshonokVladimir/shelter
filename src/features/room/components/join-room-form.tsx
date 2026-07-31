@@ -1,11 +1,17 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Field,
+  FieldError,
+  FieldLabel,
+} from '@/components/ui/field'
 import {
   Card,
   CardContent,
@@ -15,7 +21,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { joinRoomRequest } from '@/features/room/actions/api-commands'
-import { joinRoomSchema } from '@/features/room/schemas/room-schemas'
+import {
+  joinRoomSchema,
+  type JoinRoomInput,
+} from '@/features/room/schemas/room-schemas'
 import { normalizeRoomCode } from '@/features/game/utils/game-logic'
 import { ensureBrowserAuth } from '@/lib/api/client'
 
@@ -27,28 +36,29 @@ interface JoinRoomFormProps {
 
 export function JoinRoomForm({ initialCode = '', compact = false, onJoined }: JoinRoomFormProps) {
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  function onSubmit(formData: FormData) {
-    setError(null)
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<JoinRoomInput>({
+    resolver: zodResolver(joinRoomSchema),
+    defaultValues: {
+      code: normalizeRoomCode(initialCode),
+      name: '',
+    },
+  })
+
+  function onSubmit(values: JoinRoomInput) {
     startTransition(async () => {
       await ensureBrowserAuth()
-      const parsed = joinRoomSchema.safeParse({
-        code: formData.get('code'),
-        name: formData.get('name'),
-      })
-      if (!parsed.success) {
-        const message = parsed.error.issues[0]?.message ?? 'Некорректные данные'
-        setError(message)
-        toast.error(message)
-        return
-      }
-
-      const result = await joinRoomRequest(parsed.data)
+      const result = await joinRoomRequest(values)
       if (!result.ok || !result.data?.room.code) {
-        setError(result.error ?? 'Не удалось войти')
-        toast.error(result.error ?? 'Не удалось войти')
+        const message = result.error ?? 'Не удалось войти'
+        setError('root', { message })
+        toast.error(message)
         return
       }
 
@@ -62,29 +72,40 @@ export function JoinRoomForm({ initialCode = '', compact = false, onJoined }: Jo
 
   const fields = (
     <>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="code">Код комнаты</Label>
+      <Field data-invalid={Boolean(errors.code)} className="gap-1.5">
+        <FieldLabel htmlFor="join-code">Код комнаты</FieldLabel>
         <Input
-          id="code"
-          name="code"
+          id="join-code"
           placeholder="ABC123"
-          defaultValue={normalizeRoomCode(initialCode)}
-          required
           disabled={pending}
+          aria-invalid={Boolean(errors.code)}
           className="uppercase tracking-widest"
+          {...register('code')}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name">Отображаемое имя</Label>
-        <Input id="name" name="name" placeholder="Ваше имя" minLength={2} maxLength={24} required disabled={pending} />
-      </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <FieldError>{errors.code?.message}</FieldError>
+      </Field>
+      <Field data-invalid={Boolean(errors.name)} className="gap-1.5">
+        <FieldLabel htmlFor="join-name">Отображаемое имя</FieldLabel>
+        <Input
+          id="join-name"
+          placeholder="Ваше имя"
+          maxLength={24}
+          disabled={pending}
+          aria-invalid={Boolean(errors.name)}
+          autoComplete="nickname"
+          {...register('name')}
+        />
+        <FieldError>{errors.name?.message}</FieldError>
+      </Field>
+      {errors.root?.message ? (
+        <p className="text-sm text-destructive">{errors.root.message}</p>
+      ) : null}
     </>
   )
 
   if (compact) {
     return (
-      <form action={onSubmit} className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3" noValidate>
         {fields}
         <Button type="submit" disabled={pending}>
           {pending ? 'Вход…' : 'Войти'}
@@ -99,7 +120,7 @@ export function JoinRoomForm({ initialCode = '', compact = false, onJoined }: Jo
         <CardTitle>Войти в комнату</CardTitle>
         <CardDescription>Введите код и имя. Регистрация не нужна.</CardDescription>
       </CardHeader>
-      <form action={onSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <CardContent className="flex flex-col gap-4">{fields}</CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={pending}>

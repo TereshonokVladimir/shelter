@@ -1,5 +1,10 @@
 import type { GameStatus } from '@/types/common'
-import { GAME_STATUS_TRANSITIONS, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from '@/lib/constants'
+import {
+  GAME_STATUS_TRANSITIONS,
+  ROOM_CODE_ALPHABET,
+  ROOM_CODE_LENGTH,
+  pickEliminations,
+} from '@/lib/constants'
 
 export function calculateShelterCapacity(playerCount: number): number {
   if (playerCount < 2) return 1
@@ -19,32 +24,46 @@ export interface VoteTally {
 export interface VoteResult {
   tie: boolean
   eliminatedPlayerId: string | null
+  eliminatedPlayerIds: string[]
   candidateIds: string[]
+  seatsNeeded: number
   tallies: VoteTally[]
 }
 
-export function resolveVoteResult(tallies: VoteTally[]): VoteResult {
+export function resolveVoteResult(tallies: VoteTally[], seats = 1): VoteResult {
   if (tallies.length === 0) {
-    return { tie: false, eliminatedPlayerId: null, candidateIds: [], tallies: [] }
+    return {
+      tie: false,
+      eliminatedPlayerId: null,
+      eliminatedPlayerIds: [],
+      candidateIds: [],
+      seatsNeeded: 0,
+      tallies: [],
+    }
   }
 
-  const maxVotes = Math.max(...tallies.map((t) => t.votes))
-  const leaders = tallies.filter((t) => t.votes === maxVotes)
-  const sorted = [...tallies].sort((a, b) => b.votes - a.votes)
+  const sorted = [...tallies].sort(
+    (a, b) => b.votes - a.votes || a.playerId.localeCompare(b.playerId),
+  )
+  const picked = pickEliminations(sorted, seats)
 
-  if (leaders.length > 1) {
+  if (picked.tieCandidateIds) {
     return {
       tie: true,
-      eliminatedPlayerId: null,
-      candidateIds: leaders.map((l) => l.playerId),
+      eliminatedPlayerId: picked.eliminateIds[0] ?? null,
+      eliminatedPlayerIds: picked.eliminateIds,
+      candidateIds: picked.tieCandidateIds,
+      seatsNeeded: picked.seatsNeeded,
       tallies: sorted,
     }
   }
 
   return {
     tie: false,
-    eliminatedPlayerId: leaders[0]?.playerId ?? null,
+    eliminatedPlayerId: picked.eliminateIds[0] ?? null,
+    eliminatedPlayerIds: picked.eliminateIds,
     candidateIds: [],
+    seatsNeeded: 0,
     tallies: sorted,
   }
 }

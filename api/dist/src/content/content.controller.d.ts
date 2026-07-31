@@ -171,8 +171,8 @@ export declare class ContentController {
         title: string;
         description: string | null;
         isActive: boolean;
-        packageId: string;
         category: string;
+        packageId: string;
         rarity: string;
     }>;
     updateCharacteristic(token: string | undefined, id: string, body: {
@@ -185,8 +185,8 @@ export declare class ContentController {
         title: string;
         description: string | null;
         isActive: boolean;
-        packageId: string;
         category: string;
+        packageId: string;
         rarity: string;
     }>;
     deleteCharacteristic(token: string | undefined, id: string): Promise<{

@@ -1,5 +1,6 @@
 export type GameStatus =
   | 'lobby'
+  | 'prep'
   | 'reveal'
   | 'presentation'
   | 'discussion'
@@ -67,6 +68,8 @@ export interface Room {
   current_round: number
   max_players: number
   shelter_capacity: number | null
+  planned_rounds: number | null
+  reveal_plan: number[]
   package_id: string | null
   disaster_id: string | null
   bunker_id: string | null
@@ -74,6 +77,8 @@ export interface Room {
   presentation_duration_sec: number
   voting_duration_sec: number
   reveal_duration_sec: number
+  prep_duration_sec: number
+  reveal_strategy: string
   presentation_player_id: string | null
   presentation_order: string[]
   phase_ends_at: string | null
@@ -81,6 +86,7 @@ export interface Room {
   pause_remaining_ms: number | null
   is_paused: boolean
   reveal_quota: number
+  eliminations_this_round: number
   voting_candidate_ids: string[]
   last_vote_summary: Record<string, unknown>
   created_at: string
@@ -94,6 +100,7 @@ export interface Player {
   name: string
   role: RoomRole
   status: PlayerStatus
+  is_ready: boolean
   joined_at: string
   last_seen_at: string | null
   eliminated_at: string | null
@@ -125,6 +132,8 @@ export interface PlayerCharacteristicView {
   is_revealed: boolean
   revealed_round: number | null
   revealed_at: string | null
+  /** player | action | system — only player spends round quota */
+  reveal_source?: 'player' | 'action' | 'system' | string
   characteristic: Characteristic
 }
 
@@ -207,14 +216,57 @@ export interface FinishPlayerStat {
   status: PlayerStatus
   survived: boolean
   survival_chance: number
+  theme_fit: number
+  synergy: number
+  conflict: number
   votes_against: number
   rounds_lasted: number
   rarity_power: number
   rarity_counts: Record<TraitRarity, number>
+  notes: string[]
+}
+
+export interface FinishCategoryContribution {
+  category: string
+  team_total: number
+  verdict: string
+  entries: Array<{
+    player_id: string
+    name: string
+    survived: boolean
+    trait_title: string
+    delta: number
+  }>
+}
+
+export interface FinishCriterion {
+  id: string
+  label: string
+  score: number
+  baseline: number
+  delta: number
+  verdict: string
+  drivers: Array<{
+    player_id: string
+    name: string
+    trait_title: string
+    delta: number
+  }>
 }
 
 export interface FinishStats {
   shelter_capacity: number | null
   max_round: number
+  bunker_outlook: number
+  /** Disaster difficulty bar — clear if outlook ≥ threshold. */
+  challenge_threshold?: number
+  passed?: boolean
+  bunker_verdict?: string
+  disaster_title?: string | null
+  highlights: string[]
+  themes: string[]
+  categories?: FinishCategoryContribution[]
+  /** Logical readiness axes (food, health, …) — preferred for UI. */
+  criteria?: FinishCriterion[]
   players: FinishPlayerStat[]
 }

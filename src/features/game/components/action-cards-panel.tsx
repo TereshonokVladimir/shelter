@@ -39,6 +39,12 @@ interface ActionCardsPanelProps {
   onChanged?: () => void
 }
 
+const EFFECT_LABEL: Record<string, string> = {
+  swap_characteristic: 'Обмен',
+  reroll_characteristic: 'Реролл',
+  force_reveal: 'Раскрытие',
+}
+
 export function ActionCardsPanel({
   roomId,
   meId,
@@ -63,7 +69,6 @@ export function ActionCardsPanel({
   const needsCategory =
     effect === 'swap_characteristic' || effect === 'reroll_characteristic'
   const needsTarget = effect === 'swap_characteristic' || effect === 'force_reveal'
-
   const targets = players.filter((p) => p.id !== meId && p.status === 'active')
 
   function openCard(id: string) {
@@ -109,58 +114,71 @@ export function ActionCardsPanel({
     })
   }
 
-  if (myCards.length === 0) return null
+  if (myCards.length === 0) {
+    return (
+      <div className="pl-4 sm:pl-5">
+        <p className="dossier-hand text-2xl text-stone-500">Спецкарт пока нет.</p>
+      </div>
+    )
+  }
 
   return (
     <>
-      <section className="flex flex-col gap-3">
-        <div className="flex items-end justify-between gap-3">
-          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-amber-500/80">
-            Спецкарта
-          </h3>
-          <p className="text-[11px] text-stone-500">одноразовая · не из досье</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {myCards.map((card) => (
-            <article
-              key={card.id}
-              className={cn(
-                'relative overflow-hidden rounded-xl border border-orange-700/45 bg-gradient-to-br from-orange-950/55 via-stone-950/80 to-stone-950 p-4 shadow-[inset_0_1px_0_rgba(251,146,60,0.12)]',
-                card.is_used && 'opacity-50 saturate-50',
-                strikingId === card.id && 'bunker-action-strike',
-              )}
-            >
-              <div className="bunker-hazard-stripe absolute inset-x-0 top-0 h-1.5 opacity-80" />
-              <span className="bunker-rivet left-2 top-3" aria-hidden />
-              <span className="bunker-rivet right-2 top-3" aria-hidden />
-              <div className="mt-2 flex items-start justify-between gap-2">
-                <h4 className="font-[family-name:var(--font-display)] text-lg tracking-wide text-orange-50">
-                  {card.action_card.title}
-                </h4>
-                <span className="shrink-0 rounded-md border border-orange-700/50 bg-orange-950/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-orange-200/80">
-                  {card.is_used ? 'spent' : 'ready'}
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-orange-200/55">
-                {card.is_used
-                  ? `Использовано${card.used_round != null ? ` · раунд ${card.used_round}` : ''}`
-                  : 'Играть в фазе раскрытия / речи'}
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-stone-300">
-                {card.action_card.description}
-              </p>
-              <Button
-                type="button"
-                className="mt-4 w-full"
-                variant={card.is_used ? 'secondary' : 'default'}
-                disabled={disabled || pending || card.is_used}
-                onClick={() => openCard(card.id)}
+      <section>
+        <header className="mb-3 border-b border-dashed border-stone-500/25 pb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+            Карман спецкарт
+          </p>
+          <p className="dossier-hand mt-0.5 text-2xl text-[var(--nb-ink)] sm:text-3xl">
+            {myCards.filter((c) => !c.is_used).length} в руке · {myCards.length} всего
+          </p>
+        </header>
+
+        <ul className="flex flex-wrap justify-center gap-3 sm:justify-start sm:gap-4">
+          {myCards.map((card, index) => {
+            const effectLabel =
+              EFFECT_LABEL[card.action_card.effect_type] ?? 'Спецкарта'
+            return (
+              <li
+                key={card.id}
+                className={cn(strikingId === card.id && 'bunker-action-strike')}
+                style={{
+                  transform: `rotate(${(index % 2 === 0 ? -1.5 : 1.5) + (index % 3) - 1}deg)`,
+                }}
               >
-                {card.is_used ? 'Сыграно' : 'Активировать'}
-              </Button>
-            </article>
-          ))}
-        </div>
+                <article
+                  className="action-ticket-card flex min-h-[14rem] flex-col px-3 py-3"
+                  data-used={card.is_used ? '' : undefined}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="action-ticket-stamp">
+                      {card.is_used ? 'сыграно' : effectLabel}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-stone-500">
+                      спец · {index + 1}
+                    </span>
+                  </div>
+                  <h4 className="dossier-hand mt-2 text-2xl font-semibold leading-tight text-[var(--nb-ink)]">
+                    {card.action_card.title}
+                  </h4>
+                  <p className="dossier-hand mt-1 flex-1 text-lg leading-snug text-[var(--nb-ink-soft)]">
+                    {card.action_card.description}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-3 w-full"
+                    variant={card.is_used ? 'secondary' : 'default'}
+                    disabled={disabled || pending || card.is_used}
+                    onClick={() => openCard(card.id)}
+                  >
+                    {card.is_used ? 'Использована' : 'Играть'}
+                  </Button>
+                </article>
+              </li>
+            )
+          })}
+        </ul>
       </section>
 
       <Dialog open={Boolean(active)} onOpenChange={(open) => !open && close()}>
@@ -180,6 +198,13 @@ export function ActionCardsPanel({
                 <Select
                   value={category}
                   onValueChange={(value) => setCategory(value ?? null)}
+                  items={Object.fromEntries(
+                    CHARACTERISTIC_CATEGORIES.map((cat) => {
+                      const mine = myCharacteristics.find((c) => c.category === cat)
+                      const label = CATEGORY_LABELS[cat as CharacteristicCategory]
+                      return [cat, mine ? `${label} · ${mine.characteristic.title}` : label]
+                    }),
+                  )}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Выберите категорию" />
@@ -205,6 +230,7 @@ export function ActionCardsPanel({
                 <Select
                   value={targetPlayerId}
                   onValueChange={(value) => setTargetPlayerId(value ?? null)}
+                  items={Object.fromEntries(targets.map((p) => [p.id, p.name]))}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Выберите игрока" />
@@ -226,7 +252,7 @@ export function ActionCardsPanel({
               Отмена
             </Button>
             <Button type="button" onClick={submit} disabled={pending || !canSubmit()}>
-              {pending ? 'Активация…' : 'Подтвердить удар'}
+              {pending ? 'Активация…' : 'Подтвердить'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -13,16 +13,13 @@ export interface PlayerFinishStat {
     status: 'active' | 'eliminated' | 'disconnected';
     survived: boolean;
     survival_chance: number;
+    theme_fit: number;
+    synergy: number;
+    conflict: number;
     votes_against: number;
     rounds_lasted: number;
     rarity_power: number;
     rarity_counts: Record<TraitRarity, number>;
+    notes: string[];
 }
 export declare function emptyRarityCounts(): Record<TraitRarity, number>;
-export declare function computeSurvivalChance(input: {
-    survived: boolean;
-    votesAgainst: number;
-    roundsLasted: number;
-    rarityPower: number;
-    maxRound: number;
-}): number;

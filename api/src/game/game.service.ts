@@ -1,18 +1,29 @@
 import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   ALWAYS_HIDDEN_COUNT,
   DEFAULT_PRESENTATION_SEC,
+  DEFAULT_PREP_SEC,
   DEFAULT_REVEAL_SEC,
+  DEFAULT_REVEAL_STRATEGY,
   DEFAULT_VOTING_SEC,
   MAX_PRESENTATION_SEC,
+  MAX_PREP_SEC,
   MAX_REVEAL_SEC,
   MAX_VOTING_SEC,
   MIN_PRESENTATION_SEC,
+  MIN_PREP_SEC,
   MIN_REVEAL_SEC,
   MIN_VOTING_SEC,
   VOTE_RESULT_AUTO_SEC,
   revealQuotaForRound,
+  eliminationsThisRound,
+  pickEliminations,
+  plannedVotingRounds,
+  distributeRevealQuotas,
+  normalizeRevealStrategy,
+  QUOTA_REVEAL_SOURCE,
 } from './game.rules'
 import {
   CHARACTERISTIC_CATEGORIES,
@@ -28,7 +39,6 @@ import {
 } from './game.types'
 import { isMockBotsEnabled } from './mocks/mock-bots.config'
 import {
-  computeSurvivalChance,
   emptyRarityCounts,
   normalizeRarity,
   pickWeightedByRarity,
@@ -36,6 +46,10 @@ import {
   type PlayerFinishStat,
   type TraitRarity,
 } from './game.rarity'
+import {
+  computeThematicSurvivalChance,
+  evaluateBunkerSynergy,
+} from './game.synergy'
 
 @Injectable()
 export class GameService {
@@ -98,6 +112,8 @@ export class GameService {
       presentationDurationSec: number
       votingDurationSec: number
       revealDurationSec?: number
+      prepDurationSec?: number
+      revealStrategy?: string
       packageId: string
     },
   ) {
@@ -109,6 +125,10 @@ export class GameService {
       input.presentationDurationSec ?? DEFAULT_PRESENTATION_SEC
     const votingDurationSec = input.votingDurationSec ?? DEFAULT_VOTING_SEC
     const revealDurationSec = input.revealDurationSec ?? DEFAULT_REVEAL_SEC
+    const prepDurationSec = input.prepDurationSec ?? DEFAULT_PREP_SEC
+    const revealStrategy = normalizeRevealStrategy(
+      input.revealStrategy ?? DEFAULT_REVEAL_STRATEGY,
+    )
 
     if (
       presentationDurationSec < MIN_PRESENTATION_SEC ||
@@ -121,6 +141,16 @@ export class GameService {
     }
     if (revealDurationSec < MIN_REVEAL_SEC || revealDurationSec > MAX_REVEAL_SEC) {
       throw new GameException('INVALID_REVEAL_DURATION')
+    }
+    if (prepDurationSec < MIN_PREP_SEC || prepDurationSec > MAX_PREP_SEC) {
+      throw new GameException('INVALID_PREP_DURATION')
+    }
+    if (
+      input.revealStrategy != null &&
+      input.revealStrategy !== '' &&
+      normalizeRevealStrategy(input.revealStrategy) !== input.revealStrategy
+    ) {
+      throw new GameException('INVALID_REVEAL_STRATEGY')
     }
 
     const contentPack = await this.prisma.contentPackage.findFirst({
@@ -139,6 +169,8 @@ export class GameService {
               presentationDurationSec,
               votingDurationSec,
               revealDurationSec,
+              prepDurationSec,
+              revealStrategy,
               packageId: contentPack.id,
               discussionDurationSec: presentationDurationSec,
             },
@@ -164,14 +196,22 @@ export class GameService {
               payload: JSON.stringify({
                 host_player_id: player.id,
                 package_id: contentPack.id,
+                reveal_strategy: revealStrategy,
+                prep_duration_sec: prepDurationSec,
               }),
             },
           })
           return { room: updated, player }
         })
         return result
-      } catch {
-        // retry on unique code collision
+      } catch (error) {
+        // Retry only on room code unique collisions; surface real DB/schema errors.
+        const code =
+          error && typeof error === 'object' && 'code' in error
+            ? String((error as { code?: string }).code)
+            : ''
+        if (code === 'P2002') continue
+        throw error
       }
     }
     throw new GameException('ROOM_NOT_FOUND')
@@ -192,11 +232,15 @@ export class GameService {
       })
 
       if (existing) {
+        const nextName = room.status === 'lobby' ? name : existing.name
+        if (room.status === 'lobby' && nextName !== existing.name) {
+          await this.assertUniquePlayerName(tx, room.id, nextName, existing.id)
+        }
         const player = await tx.player.update({
           where: { id: existing.id },
           data: {
             lastSeenAt: new Date(),
-            name: room.status === 'lobby' ? name : existing.name,
+            name: nextName,
             status:
               existing.status === 'disconnected' && !existing.eliminatedAt
                 ? 'active'
@@ -213,6 +257,8 @@ export class GameService {
       })
       if (count >= room.maxPlayers) throw new GameException('ROOM_FULL')
 
+      await this.assertUniquePlayerName(tx, room.id, name)
+
       const player = await tx.player.create({
         data: {
           roomId: room.id,
@@ -220,6 +266,7 @@ export class GameService {
           name,
           role: 'player',
           status: 'active',
+          isReady: false,
           lastSeenAt: new Date(),
         },
       })
@@ -233,6 +280,31 @@ export class GameService {
       })
 
       return { room, player, rejoined: false }
+    })
+  }
+
+  async setPlayerReady(userId: string, roomId: string, ready: boolean) {
+    return this.prisma.$transaction(async (tx) => {
+      const room = await tx.room.findUniqueOrThrow({ where: { id: roomId } })
+      if (room.status !== 'lobby') throw new GameException('INVALID_STATUS')
+
+      const me = await tx.player.findFirst({ where: { roomId, userId } })
+      if (!me || me.status !== 'active') throw new GameException('PLAYER_NOT_ACTIVE')
+
+      const player = await tx.player.update({
+        where: { id: me.id },
+        data: { isReady: ready, lastSeenAt: new Date() },
+      })
+
+      await tx.gameEvent.create({
+        data: {
+          roomId,
+          type: ready ? 'player_ready' : 'player_unready',
+          payload: JSON.stringify({ player_id: player.id }),
+        },
+      })
+
+      return { player }
     })
   }
 
@@ -281,6 +353,7 @@ export class GameService {
         where: { roomId, status: 'active' },
       })
       if (players.length < 4) throw new GameException('NOT_ENOUGH_PLAYERS')
+      if (players.some((p) => !p.isReady)) throw new GameException('PLAYERS_NOT_READY')
 
       const packageId =
         room.packageId ??
@@ -302,6 +375,7 @@ export class GameService {
       const disaster = shuffle(disasters)[0]
       const bunker = shuffle(bunkers)[0]
       const capacity = calculateShelterCapacity(players.length)
+      const plannedRounds = plannedVotingRounds(players.length, capacity)
 
       for (const category of CHARACTERISTIC_CATEGORIES) {
         const pool = await tx.characteristic.findMany({
@@ -342,20 +416,27 @@ export class GameService {
         })
       }
 
-      const phaseEndsAt = new Date(Date.now() + room.revealDurationSec * 1000)
+      const order = players.map((p) => p.id)
+      const prepSec = room.prepDurationSec ?? 0
+      const startPresentation = prepSec <= 0
+      const phaseEndsAt = new Date(
+        Date.now() +
+          (startPresentation ? room.presentationDurationSec : prepSec) * 1000,
+      )
 
       const updated = await tx.room.update({
         where: { id: roomId },
         data: {
-          status: 'reveal',
+          status: startPresentation ? 'presentation' : 'prep',
           currentRound: 1,
           shelterCapacity: capacity,
+          plannedRounds,
           packageId,
           disasterId: disaster.id,
           bunkerId: bunker.id,
           phaseEndsAt,
-          presentationPlayerId: null,
-          presentationOrderJson: '[]',
+          presentationPlayerId: startPresentation ? (order[0] ?? null) : null,
+          presentationOrderJson: startPresentation ? JSON.stringify(order) : '[]',
           pausedAt: null,
           pauseRemainingMs: null,
           votingCandidateIdsJson: '[]',
@@ -373,8 +454,14 @@ export class GameService {
             bunker_id: bunker.id,
             package_id: packageId,
             shelter_capacity: capacity,
+            planned_rounds: plannedRounds,
+            reveal_plan: distributeRevealQuotas(plannedRounds, room.revealStrategy),
             player_count: players.length,
             phase_ends_at: phaseEndsAt,
+            presentation_player_id: startPresentation ? (order[0] ?? null) : null,
+            prep_duration_sec: prepSec,
+            reveal_strategy: room.revealStrategy,
+            phase: startPresentation ? 'presentation' : 'prep',
           }),
         },
       })
@@ -399,29 +486,53 @@ export class GameService {
           playerId: player.id,
           isRevealed: true,
           revealedRound: currentRound,
+          revealSource: QUOTA_REVEAL_SOURCE,
         },
       })
-      if (revealed < quota) return false
+      if (revealed >= quota) continue
+
+      const unrevealed = await this.prisma.playerCharacteristic.count({
+        where: { playerId: player.id, isRevealed: false },
+      })
+      // Cannot reveal further (always-hidden floor) — treat as done for auto-advance.
+      if (unrevealed <= ALWAYS_HIDDEN_COUNT) continue
+
+      return false
     }
     return true
   }
 
-  async revealCharacteristic(userId: string, roomId: string, playerCharacteristicId: string) {
-    let currentRound = 0
-    let shouldCheckQuota = false
+  /** After bots / bulk reveals — advance if everyone met quota or cannot reveal more. */
+  async advanceRevealIfReady(roomId: string) {
+    const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
+    if (room.status !== 'reveal') return { advanced: false }
+    const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+    const allDone = await this.allActiveMetRevealQuota(roomId, room.currentRound, quota)
+    if (!allDone) return { advanced: false }
+    await this.beginPresentation(roomId)
+    return { advanced: true }
+  }
 
-    const result = await this.prisma.$transaction(async (tx) => {
+  async revealCharacteristic(userId: string, roomId: string, playerCharacteristicId: string) {
+    return this.prisma.$transaction(async (tx) => {
       const room = await tx.room.findUniqueOrThrow({ where: { id: roomId } })
-      if (room.status !== 'reveal') throw new GameException('INVALID_STATUS')
+      if (!isPresentationStatus(room.status) && room.status !== 'reveal') {
+        throw new GameException('INVALID_STATUS')
+      }
       this.assertNotPaused(room)
 
-      const quota = revealQuotaForRound(room.currentRound)
+      const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
       if (quota <= 0) throw new GameException('INVALID_STATUS')
 
       const me = await tx.player.findFirst({
         where: { roomId, userId, status: 'active' },
       })
       if (!me) throw new GameException('PLAYER_NOT_ACTIVE')
+
+      // Reveal only on your own turn (presentation speaker). Legacy `reveal` status: anyone.
+      if (isPresentationStatus(room.status) && room.presentationPlayerId !== me.id) {
+        throw new GameException('NOT_YOUR_TURN')
+      }
 
       const pc = await tx.playerCharacteristic.findFirst({
         where: { id: playerCharacteristicId, roomId },
@@ -437,6 +548,7 @@ export class GameService {
           playerId: me.id,
           isRevealed: true,
           revealedRound: room.currentRound,
+          revealSource: { in: [QUOTA_REVEAL_SOURCE, 'system'] },
         },
       })
       if (already >= quota) throw new GameException('REVEAL_LIMIT_REACHED')
@@ -454,6 +566,7 @@ export class GameService {
           isRevealed: true,
           revealedRound: room.currentRound,
           revealedAt: new Date(),
+          revealSource: QUOTA_REVEAL_SOURCE,
         },
       })
 
@@ -470,20 +583,8 @@ export class GameService {
         },
       })
 
-      currentRound = room.currentRound
-      shouldCheckQuota = true
       return { player_characteristic: updated }
     })
-
-    if (shouldCheckQuota) {
-      const quota = revealQuotaForRound(currentRound)
-      const allDone = await this.allActiveMetRevealQuota(roomId, currentRound, quota)
-      if (allDone) {
-        await this.beginPresentation(roomId)
-      }
-    }
-
-    return result
   }
 
   async playActionCard(
@@ -506,6 +607,10 @@ export class GameService {
         where: { roomId, userId, status: 'active' },
       })
       if (!me) throw new GameException('PLAYER_NOT_ACTIVE')
+
+      if (isPresentationStatus(room.status) && room.presentationPlayerId !== me.id) {
+        throw new GameException('NOT_YOUR_TURN')
+      }
 
       const pac = await tx.playerActionCard.findFirst({
         where: { id: input.playerActionCardId, roomId },
@@ -545,33 +650,22 @@ export class GameService {
         })
         if (!mine || !theirs) throw new GameException('ACTION_INVALID')
 
-        // Break unique(playerId, characteristicId) during swap via temp ids if needed —
-        // swap fields in two steps using a placeholder from the other's id first.
+        // Swap only card content; reveal/quota state stays with each player's slot.
         await tx.playerCharacteristic.update({
           where: { id: mine.id },
-          data: {
-            characteristicId: theirs.characteristicId,
-            isRevealed: theirs.isRevealed,
-            revealedRound: theirs.revealedRound,
-            revealedAt: theirs.revealedAt,
-          },
+          data: { characteristicId: theirs.characteristicId },
         })
         await tx.playerCharacteristic.update({
           where: { id: theirs.id },
-          data: {
-            characteristicId: mine.characteristicId,
-            isRevealed: mine.isRevealed,
-            revealedRound: mine.revealedRound,
-            revealedAt: mine.revealedAt,
-          },
+          data: { characteristicId: mine.characteristicId },
         })
 
         summary = {
           ...summary,
           category,
           target_player_id: target.id,
-          my_new_title: theirs.characteristic.title,
-          their_new_title: mine.characteristic.title,
+          my_new_characteristic_id: theirs.characteristicId,
+          their_new_characteristic_id: mine.characteristicId,
         }
       } else if (effect === 'reroll_characteristic') {
         const category = input.category
@@ -608,12 +702,13 @@ export class GameService {
             isRevealed: false,
             revealedRound: null,
             revealedAt: null,
+            revealSource: QUOTA_REVEAL_SOURCE,
           },
         })
         summary = {
           ...summary,
           category,
-          new_title: next.title,
+          new_characteristic_id: next.id,
         }
       } else if (effect === 'force_reveal') {
         const targetPlayerId = input.targetPlayerId
@@ -631,7 +726,10 @@ export class GameService {
             include: { characteristic: true },
           }),
         )
-        if (!hidden.length) throw new GameException('ACTION_INVALID')
+        // Leave at least one trait hidden (same rule as voluntary reveal).
+        if (hidden.length <= ALWAYS_HIDDEN_COUNT) {
+          throw new GameException('ACTION_INVALID')
+        }
         const pick = hidden[0]
         await tx.playerCharacteristic.update({
           where: { id: pick.id },
@@ -639,13 +737,15 @@ export class GameService {
             isRevealed: true,
             revealedRound: room.currentRound,
             revealedAt: new Date(),
+            revealSource: 'action',
           },
         })
         summary = {
           ...summary,
           target_player_id: target.id,
           category: pick.category,
-          revealed_title: pick.characteristic.title,
+          player_characteristic_id: pick.id,
+          quota_exempt: true,
         }
       } else {
         throw new GameException('ACTION_INVALID')
@@ -677,6 +777,87 @@ export class GameService {
     })
   }
 
+  /**
+   * Fill unfinished round quota with random traits.
+   * Called at end of a player's turn, or for everyone when jumping to voting / leaving legacy reveal.
+   */
+  private async autofillMissingReveals(roomId: string, playerIds?: string[]) {
+    const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
+    if (
+      room.status !== 'reveal' &&
+      !isPresentationStatus(room.status)
+    ) {
+      return
+    }
+
+    const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+    if (quota <= 0) return
+
+    const active = await this.prisma.player.findMany({
+      where: {
+        roomId,
+        status: 'active',
+        ...(playerIds?.length ? { id: { in: playerIds } } : {}),
+      },
+    })
+
+    for (const player of active) {
+      const already = await this.prisma.playerCharacteristic.count({
+        where: {
+          playerId: player.id,
+          isRevealed: true,
+          revealedRound: room.currentRound,
+          revealSource: QUOTA_REVEAL_SOURCE,
+        },
+      })
+      const systemAlready = await this.prisma.playerCharacteristic.count({
+        where: {
+          playerId: player.id,
+          isRevealed: true,
+          revealedRound: room.currentRound,
+          revealSource: 'system',
+        },
+      })
+      let need = quota - already - systemAlready
+      if (need <= 0) continue
+
+      const hidden = shuffle(
+        await this.prisma.playerCharacteristic.findMany({
+          where: { playerId: player.id, isRevealed: false },
+        }),
+      )
+      const maxCanReveal = Math.max(0, hidden.length - ALWAYS_HIDDEN_COUNT)
+      need = Math.min(need, maxCanReveal)
+      if (need <= 0) continue
+
+      const picks = hidden.slice(0, need)
+      for (const pick of picks) {
+        await this.prisma.playerCharacteristic.update({
+          where: { id: pick.id },
+          data: {
+            isRevealed: true,
+            revealedRound: room.currentRound,
+            revealedAt: new Date(),
+            revealSource: 'system',
+          },
+        })
+      }
+
+      if (picks.length > 0) {
+        await this.addEvent(
+          roomId,
+          'reveals_autofilled',
+          {
+            player_id: player.id,
+            count: picks.length,
+            player_characteristic_ids: picks.map((p) => p.id),
+          },
+          room.currentRound,
+        )
+      }
+    }
+  }
+
   async beginPresentation(roomId: string, opts?: { hostUserId?: string }) {
     if (opts?.hostUserId) {
       await this.requireHost(roomId, opts.hostUserId)
@@ -686,15 +867,29 @@ export class GameService {
     this.assertNotPaused(room)
 
     if (isPresentationStatus(room.status)) {
-      return { room, already: true }
+      const existingOrder = this.parseJson<string[]>(room.presentationOrderJson, [])
+      if (room.presentationPlayerId && existingOrder.length > 0) {
+        return { room, already: true }
+      }
     }
 
+    const tie =
+      room.status === 'vote_result' &&
+      this.parseJson<{ tie?: boolean }>(room.lastVoteSummaryJson, {}).tie === true
+
     const allowed =
+      room.status === 'prep' ||
       room.status === 'reveal' ||
-      (room.status === 'vote_result' &&
-        this.parseJson<{ tie?: boolean }>(room.lastVoteSummaryJson, {}).tie === true)
+      tie ||
+      isPresentationStatus(room.status) ||
+      room.status === 'vote_result'
 
     if (!allowed) throw new GameException('INVALID_STATUS')
+
+    // Legacy shared reveal phase → don't leave unfinished quotas behind
+    if (room.status === 'reveal') {
+      await this.autofillMissingReveals(roomId)
+    }
 
     const active = await this.prisma.player.findMany({
       where: { roomId, status: 'active' },
@@ -735,33 +930,64 @@ export class GameService {
     return this.beginPresentation(roomId, { hostUserId: userId })
   }
 
-  async advancePresentation(roomId: string, opts?: { hostUserId?: string }) {
-    if (opts?.hostUserId) {
-      await this.requireHost(roomId, opts.hostUserId)
-    }
-
+  async advancePresentation(
+    roomId: string,
+    opts?: { actorUserId?: string; hostUserId?: string },
+  ) {
     const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
     if (!isPresentationStatus(room.status)) throw new GameException('INVALID_STATUS')
     this.assertNotPaused(room)
+
+    const actorUserId = opts?.actorUserId ?? opts?.hostUserId
+    if (actorUserId) {
+      const actor = await this.prisma.player.findFirst({
+        where: { roomId, userId: actorUserId },
+      })
+      if (!actor || actor.status !== 'active') {
+        throw new GameException('PLAYER_NOT_ACTIVE')
+      }
+      const isHost = actor.role === 'host'
+      const isSpeaker = room.presentationPlayerId === actor.id
+      if (!isHost && !isSpeaker) {
+        throw new GameException('FORBIDDEN_END_TURN')
+      }
+    }
 
     const order = this.parseJson<string[]>(room.presentationOrderJson, [])
     const currentId = room.presentationPlayerId
     const idx = currentId ? order.indexOf(currentId) : -1
     const nextId = idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null
 
+    // End of this player's turn — open leftover quota randomly.
+    if (currentId) {
+      await this.autofillMissingReveals(roomId, [currentId])
+    }
+
     if (!nextId) {
       return this.beginVoting(roomId)
     }
 
     const phaseEndsAt = new Date(Date.now() + room.presentationDurationSec * 1000)
-    const updated = await this.prisma.room.update({
-      where: { id: roomId },
+    // Conditional update — concurrent host/timer ticks must not skip a speaker.
+    const claimed = await this.prisma.room.updateMany({
+      where: {
+        id: roomId,
+        presentationPlayerId: currentId,
+        status: { in: ['presentation', 'discussion'] },
+      },
       data: {
         status: 'presentation',
         presentationPlayerId: nextId,
         phaseEndsAt,
       },
     })
+
+    if (claimed.count === 0) {
+      const latest = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
+      return { room: latest, skipped: true as const }
+    }
+
+    const updated = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
 
     await this.addEvent(
       roomId,
@@ -783,14 +1009,20 @@ export class GameService {
     if (room.status === 'voting') return { room, already: true }
 
     const fromPresentation = isPresentationStatus(room.status)
-    const fromTie =
-      room.status === 'vote_result' &&
-      this.parseJson<{ tie?: boolean }>(room.lastVoteSummaryJson, {}).tie === true
+    const lastSummary = this.parseJson<{ tie?: boolean; seats_needed?: number }>(
+      room.lastVoteSummaryJson,
+      {},
+    )
+    const fromTie = room.status === 'vote_result' && lastSummary.tie === true
 
     if (!fromPresentation && !fromTie) throw new GameException('INVALID_STATUS')
 
+    // Host may skip remaining speakers — fill everyone's unfinished reveal quota.
+    if (fromPresentation) {
+      await this.autofillMissingReveals(roomId)
+    }
+
     const existingCandidates = this.parseJson<string[]>(room.votingCandidateIdsJson, [])
-    const lastSummary = this.parseJson<{ tie?: boolean }>(room.lastVoteSummaryJson, {})
     const isRevote =
       existingCandidates.length > 0 &&
       (fromTie || (fromPresentation && lastSummary.tie === true))
@@ -806,6 +1038,9 @@ export class GameService {
       candidateIds = active.map((p) => p.id)
     }
 
+    // Preserve how many seats this vote must fill (esp. after a partial clear + tie).
+    const seatsNeeded = isRevote ? Math.max(1, lastSummary.seats_needed ?? 1) : undefined
+
     await this.prisma.vote.deleteMany({ where: { roomId, round: room.currentRound } })
 
     const phaseEndsAt = new Date(Date.now() + room.votingDurationSec * 1000)
@@ -816,14 +1051,20 @@ export class GameService {
         phaseEndsAt,
         presentationPlayerId: null,
         votingCandidateIdsJson: JSON.stringify(candidateIds),
-        lastVoteSummaryJson: '{}',
+        lastVoteSummaryJson: JSON.stringify(
+          seatsNeeded != null ? { seats_needed: seatsNeeded } : {},
+        ),
       },
     })
 
     await this.addEvent(
       roomId,
       'voting_started',
-      { candidate_ids: candidateIds, phase_ends_at: phaseEndsAt },
+      {
+        candidate_ids: candidateIds,
+        phase_ends_at: phaseEndsAt,
+        eliminations: seatsNeeded,
+      },
       updated.currentRound,
     )
 
@@ -836,7 +1077,7 @@ export class GameService {
   }
 
   async submitVote(userId: string, roomId: string, targetPlayerId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const room = await tx.room.findUniqueOrThrow({ where: { id: roomId } })
       if (room.status !== 'voting') throw new GameException('INVALID_STATUS')
       this.assertNotPaused(room)
@@ -872,7 +1113,7 @@ export class GameService {
         const cast = await tx.vote.count({ where: { roomId, round: room.currentRound } })
         return {
           vote: existing,
-          already_voted: true,
+          already_voted: true as const,
           progress: { cast, total: activeCount },
         }
       }
@@ -900,12 +1141,49 @@ export class GameService {
         },
       })
 
-      return { vote, progress: { cast, total: activeCount } }
+      return { vote, already_voted: false as const, progress: { cast, total: activeCount } }
     })
+
+    if (!result.already_voted && result.progress.cast >= result.progress.total) {
+      const resolved = await this.resolveVotingIfReady(roomId)
+      if (resolved) {
+        return { ...result, room: resolved.room, auto_completed: true as const }
+      }
+    }
+
+    return result
   }
 
-  /** System autofill — allows self-vote (manual submitVote still blocks it). */
+  /** When every active player has voted — resolve immediately (no timer wait). */
+  async resolveVotingIfReady(roomId: string) {
+    const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
+    if (room.status !== 'voting' || room.pausedAt) return null
+
+    const activeCount = await this.prisma.player.count({
+      where: { roomId, status: 'active' },
+    })
+    const cast = await this.prisma.vote.count({
+      where: { roomId, round: room.currentRound },
+    })
+    if (cast < activeCount || activeCount === 0) return null
+
+    try {
+      return await this.resolveVoting(roomId)
+    } catch (error) {
+      if (
+        error instanceof GameException &&
+        (error.code === 'INVALID_STATUS' || error.code === 'VOTING_INCOMPLETE')
+      ) {
+        return null
+      }
+      throw error
+    }
+  }
+
+  /** System autofill on timeout. Self-vote only when no candidate list; else pick a legal candidate. */
   private async autofillMissingVotesAsSelf(roomId: string, round: number) {
+    const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
+    const candidates = this.parseJson<string[]>(room.votingCandidateIdsJson, [])
     const activePlayers = await this.prisma.player.findMany({
       where: { roomId, status: 'active' },
     })
@@ -916,12 +1194,25 @@ export class GameService {
 
     for (const player of activePlayers) {
       if (voted.has(player.id)) continue
+
+      let targetPlayerId = player.id
+      if (candidates.length > 0) {
+        const options = candidates.filter((id) => id !== player.id)
+        if (options.length > 0) {
+          targetPlayerId = options[Math.floor(Math.random() * options.length)]
+        } else if (candidates.includes(player.id)) {
+          targetPlayerId = player.id
+        } else {
+          targetPlayerId = candidates[Math.floor(Math.random() * candidates.length)]
+        }
+      }
+
       await this.prisma.vote.create({
         data: {
           roomId,
           round,
           voterId: player.id,
-          targetPlayerId: player.id,
+          targetPlayerId,
         },
       })
     }
@@ -949,27 +1240,54 @@ export class GameService {
     })
     if (votes.length < activePlayers.length) throw new GameException('VOTING_INCOMPLETE')
 
+    const candidates = this.parseJson<string[]>(room.votingCandidateIdsJson, [])
+    const tallyTargets =
+      candidates.length > 0 ? candidates : activePlayers.map((p) => p.id)
+
     const tallyMap = new Map<string, number>()
+    for (const id of tallyTargets) tallyMap.set(id, 0)
     for (const vote of votes) {
+      if (!tallyMap.has(vote.targetPlayerId)) continue
       tallyMap.set(vote.targetPlayerId, (tallyMap.get(vote.targetPlayerId) ?? 0) + 1)
     }
     const tallies = [...tallyMap.entries()]
       .map(([player_id, voteCount]) => ({ player_id, votes: voteCount }))
-      .sort((a, b) => b.votes - a.votes)
-    const maxVotes = tallies[0]?.votes ?? 0
-    const leaders = tallies.filter((t) => t.votes === maxVotes).map((t) => t.player_id)
+      .sort((a, b) => b.votes - a.votes || a.player_id.localeCompare(b.player_id))
 
-    if (leaders.length > 1) {
+    const pendingSummary = this.parseJson<{ seats_needed?: number }>(
+      room.lastVoteSummaryJson,
+      {},
+    )
+    const isRevote = candidates.length > 0 && pendingSummary.seats_needed != null
+    const seats = isRevote
+      ? Math.max(1, pendingSummary.seats_needed ?? 1)
+      : eliminationsThisRound({
+          activeCount: activePlayers.length,
+          shelterCapacity: room.shelterCapacity ?? 0,
+          currentRound: room.currentRound,
+          strategy: room.revealStrategy,
+        })
+
+    const picked = pickEliminations(tallies, seats)
+
+    if (picked.eliminateIds.length > 0) {
+      await this.eliminatePlayers(roomId, room.currentRound, picked.eliminateIds)
+    }
+
+    if (picked.tieCandidateIds) {
       const phaseEndsAt = this.voteResultEndsAt()
       const updated = await this.prisma.room.update({
         where: { id: roomId },
         data: {
           status: 'vote_result',
           phaseEndsAt,
-          votingCandidateIdsJson: JSON.stringify(leaders),
+          votingCandidateIdsJson: JSON.stringify(picked.tieCandidateIds),
           lastVoteSummaryJson: JSON.stringify({
             tie: true,
-            candidate_ids: leaders,
+            candidate_ids: picked.tieCandidateIds,
+            seats_needed: picked.seatsNeeded,
+            eliminated_player_ids: picked.eliminateIds,
+            eliminated_player_id: picked.eliminateIds[0] ?? null,
             tallies,
           }),
         },
@@ -977,27 +1295,27 @@ export class GameService {
       await this.addEvent(
         roomId,
         'vote_tie',
-        { candidate_ids: leaders, tallies, phase_ends_at: phaseEndsAt },
+        {
+          candidate_ids: picked.tieCandidateIds,
+          seats_needed: picked.seatsNeeded,
+          eliminated_player_ids: picked.eliminateIds,
+          tallies,
+          phase_ends_at: phaseEndsAt,
+        },
         room.currentRound,
       )
-      return { room: updated, tie: true, summary: tallies }
+      return {
+        room: updated,
+        tie: true,
+        summary: tallies,
+        eliminated_player_ids: picked.eliminateIds,
+      }
     }
 
-    const eliminatedId = leaders[0]
-    await this.prisma.player.update({
-      where: { id: eliminatedId },
-      data: { status: 'eliminated', eliminatedAt: new Date() },
-    })
-    await this.prisma.playerCharacteristic.updateMany({
-      where: { playerId: eliminatedId, isRevealed: false },
-      data: {
-        isRevealed: true,
-        revealedRound: room.currentRound,
-        revealedAt: new Date(),
-      },
-    })
-
+    const eliminatedIds = picked.eliminateIds
+    const eliminatedId = eliminatedIds[0] ?? null
     const remaining = await this.prisma.player.count({ where: { roomId, status: 'active' } })
+
     if (remaining <= (room.shelterCapacity ?? 0)) {
       const updated = await this.prisma.room.update({
         where: { id: roomId },
@@ -1006,6 +1324,7 @@ export class GameService {
           votingCandidateIdsJson: '[]',
           lastVoteSummaryJson: JSON.stringify({
             tie: false,
+            eliminated_player_ids: eliminatedIds,
             eliminated_player_id: eliminatedId,
             tallies,
           }),
@@ -1022,15 +1341,26 @@ export class GameService {
           isRevealed: true,
           revealedRound: room.currentRound,
           revealedAt: new Date(),
+          revealSource: 'system',
         },
       })
       await this.addEvent(
         roomId,
         'game_finished',
-        { eliminated_player_id: eliminatedId, tallies },
+        {
+          eliminated_player_ids: eliminatedIds,
+          eliminated_player_id: eliminatedId,
+          tallies,
+        },
         room.currentRound,
       )
-      return { room: updated, eliminated_player_id: eliminatedId, summary: tallies, tie: false }
+      return {
+        room: updated,
+        eliminated_player_id: eliminatedId,
+        eliminated_player_ids: eliminatedIds,
+        summary: tallies,
+        tie: false,
+      }
     }
 
     const phaseEndsAt = this.voteResultEndsAt()
@@ -1042,6 +1372,7 @@ export class GameService {
         votingCandidateIdsJson: '[]',
         lastVoteSummaryJson: JSON.stringify({
           tie: false,
+          eliminated_player_ids: eliminatedIds,
           eliminated_player_id: eliminatedId,
           tallies,
         }),
@@ -1050,10 +1381,38 @@ export class GameService {
     await this.addEvent(
       roomId,
       'player_eliminated',
-      { eliminated_player_id: eliminatedId, tallies, phase_ends_at: phaseEndsAt },
+      {
+        eliminated_player_ids: eliminatedIds,
+        eliminated_player_id: eliminatedId,
+        tallies,
+        phase_ends_at: phaseEndsAt,
+      },
       room.currentRound,
     )
-    return { room: updated, eliminated_player_id: eliminatedId, summary: tallies, tie: false }
+    return {
+      room: updated,
+      eliminated_player_id: eliminatedId,
+      eliminated_player_ids: eliminatedIds,
+      summary: tallies,
+      tie: false,
+    }
+  }
+
+  private async eliminatePlayers(roomId: string, round: number, playerIds: string[]) {
+    const now = new Date()
+    await this.prisma.player.updateMany({
+      where: { id: { in: playerIds }, roomId },
+      data: { status: 'eliminated', eliminatedAt: now },
+    })
+    await this.prisma.playerCharacteristic.updateMany({
+      where: { playerId: { in: playerIds }, roomId, isRevealed: false },
+      data: {
+        isRevealed: true,
+        revealedRound: round,
+        revealedAt: now,
+        revealSource: 'system',
+      },
+    })
   }
 
   async nextRevealRound(userId: string, roomId: string) {
@@ -1064,8 +1423,6 @@ export class GameService {
   async advanceToNextRound(roomId: string) {
     const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
     this.assertNotPaused(room)
-
-    if (room.status === 'reveal') return { room, already: true }
 
     const lastSummary = this.parseJson<{ tie?: boolean }>(room.lastVoteSummaryJson, {})
     const fromPresentationSkip =
@@ -1080,44 +1437,24 @@ export class GameService {
       if (lastSummary.tie && candidates.length > 0) throw new GameException('TIE_REQUIRES_REVOTE')
     }
 
-    const nextRound = room.currentRound + 1
-    const quota = revealQuotaForRound(nextRound)
-
-    if (quota <= 0) {
-      await this.prisma.room.update({
-        where: { id: roomId },
-        data: {
-          currentRound: nextRound,
-          votingCandidateIdsJson: '[]',
-          lastVoteSummaryJson: '{}',
-          presentationPlayerId: null,
-          presentationOrderJson: '[]',
-        },
-      })
-      await this.addEvent(roomId, 'round_advanced', { current_round: nextRound }, nextRound)
-      return this.beginPresentation(roomId)
+    // Speakers who never got a turn still need quota filled before leaving presentation.
+    if (fromPresentationSkip) {
+      await this.autofillMissingReveals(roomId)
     }
 
-    const phaseEndsAt = new Date(Date.now() + room.revealDurationSec * 1000)
-    const updated = await this.prisma.room.update({
+    const nextRound = room.currentRound + 1
+    await this.prisma.room.update({
       where: { id: roomId },
       data: {
-        status: 'reveal',
         currentRound: nextRound,
-        phaseEndsAt,
-        presentationPlayerId: null,
-        presentationOrderJson: '[]',
         votingCandidateIdsJson: '[]',
         lastVoteSummaryJson: '{}',
+        presentationPlayerId: null,
+        presentationOrderJson: '[]',
       },
     })
-    await this.addEvent(
-      roomId,
-      'reveal_started',
-      { phase_ends_at: phaseEndsAt },
-      updated.currentRound,
-    )
-    return { room: updated }
+    await this.addEvent(roomId, 'round_advanced', { current_round: nextRound }, nextRound)
+    return this.beginPresentation(roomId)
   }
 
   async setPaused(userId: string, roomId: string, paused: boolean) {
@@ -1180,7 +1517,7 @@ export class GameService {
         phaseEndsAt: { lte: now },
         pausedAt: null,
         status: {
-          in: ['reveal', 'presentation', 'discussion', 'voting', 'vote_result'],
+          in: ['prep', 'reveal', 'presentation', 'discussion', 'voting', 'vote_result'],
         },
       },
       select: { id: true, code: true, status: true },
@@ -1205,7 +1542,7 @@ export class GameService {
 
     const status = normalizeGameStatus(room.status)
 
-    if (status === 'reveal') {
+    if (status === 'prep' || status === 'reveal') {
       await this.beginPresentation(roomId)
       return
     }
@@ -1255,6 +1592,7 @@ export class GameService {
           isRevealed: true,
           revealedAt: new Date(),
           revealedRound: room.currentRound,
+          revealSource: 'system',
         },
       })
       await tx.gameEvent.create({
@@ -1280,9 +1618,21 @@ export class GameService {
   private async buildFinishStats(roomId: string): Promise<{
     shelter_capacity: number | null
     max_round: number
+    bunker_outlook: number
+    challenge_threshold: number
+    passed: boolean
+    bunker_verdict: string
+    highlights: string[]
+    themes: string[]
+    categories: ReturnType<typeof evaluateBunkerSynergy>['categories']
+    criteria: ReturnType<typeof evaluateBunkerSynergy>['criteria']
+    disaster_title: string | null
     players: PlayerFinishStat[]
   }> {
-    const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
+    const room = await this.prisma.room.findUniqueOrThrow({
+      where: { id: roomId },
+      include: { disaster: true, bunker: true },
+    })
     const [players, votes, traits] = await Promise.all([
       this.prisma.player.findMany({ where: { roomId } }),
       this.prisma.vote.findMany({ where: { roomId } }),
@@ -1293,6 +1643,26 @@ export class GameService {
     ])
 
     const maxRound = Math.max(1, room.currentRound)
+    const synergy = evaluateBunkerSynergy({
+      disasterTitle: room.disaster?.title ?? '',
+      disasterDescription: room.disaster?.description ?? '',
+      bunkerTitle: room.bunker?.title ?? null,
+      bunkerDescription: room.bunker?.description ?? null,
+      players: players.map((player) => ({
+        id: player.id,
+        name: player.name,
+        status: player.status,
+        traits: traits
+          .filter((t) => t.playerId === player.id)
+          .map((t) => ({
+            category: t.category,
+            title: t.characteristic.title,
+            description: t.characteristic.description,
+          })),
+      })),
+    })
+    const synergyByPlayer = new Map(synergy.players.map((p) => [p.player_id, p]))
+
     const stats: PlayerFinishStat[] = players.map((player) => {
       const votesAgainst = votes.filter((v) => v.targetPlayerId === player.id).length
       const survived = player.status === 'active'
@@ -1310,22 +1680,30 @@ export class GameService {
         rarityPower += RARITY_SCORE[rarity]
       }
 
+      const fit = synergyByPlayer.get(player.id)
+      const theme_fit = fit?.theme_fit ?? 0
+      const synergyScore = fit?.synergy ?? 0
+      const conflict = fit?.conflict ?? 0
+
       return {
         player_id: player.id,
         name: player.name,
         status: player.status as PlayerFinishStat['status'],
         survived,
-        survival_chance: computeSurvivalChance({
+        survival_chance: computeThematicSurvivalChance({
           survived,
-          votesAgainst,
-          roundsLasted,
-          rarityPower,
-          maxRound,
+          themeFit: theme_fit,
+          synergy: synergyScore,
+          conflict,
         }),
+        theme_fit,
+        synergy: synergyScore,
+        conflict,
         votes_against: votesAgainst,
         rounds_lasted: roundsLasted,
         rarity_power: rarityPower,
         rarity_counts,
+        notes: fit?.notes ?? [],
       }
     })
 
@@ -1337,6 +1715,15 @@ export class GameService {
     return {
       shelter_capacity: room.shelterCapacity,
       max_round: maxRound,
+      bunker_outlook: synergy.bunker_outlook,
+      challenge_threshold: synergy.challenge_threshold,
+      passed: synergy.passed,
+      bunker_verdict: synergy.bunker_verdict,
+      highlights: synergy.highlights,
+      themes: synergy.themes,
+      categories: synergy.categories,
+      criteria: synergy.criteria,
+      disaster_title: room.disaster?.title ?? null,
       players: stats,
     }
   }
@@ -1394,6 +1781,7 @@ export class GameService {
         is_revealed: showAllTraits ? true : item.isRevealed,
         revealed_round: item.revealedRound,
         revealed_at: item.revealedAt?.toISOString() ?? null,
+        reveal_source: item.revealSource ?? 'player',
         characteristic: {
           id: item.characteristic.id,
           category: item.characteristic.category as CharacteristicCategory,
@@ -1439,7 +1827,9 @@ export class GameService {
       room.status === 'finished' ? await this.buildFinishStats(room.id) : null
 
     return {
-      room: this.serializeRoom(room),
+      room: this.serializeRoom(room, {
+        activeCount: activeVoters.length,
+      }),
       players: players.map((p) => this.serializePlayer(p)),
       me: this.serializePlayer(me),
       disaster: room.disaster
@@ -1495,7 +1885,8 @@ export class GameService {
     }
   }
 
-  private serializeRoom(room: {
+  private serializeRoom(
+    room: {
     id: string
     code: string
     hostPlayerId: string | null
@@ -1503,6 +1894,7 @@ export class GameService {
     currentRound: number
     maxPlayers: number
     shelterCapacity: number | null
+    plannedRounds: number | null
     packageId: string | null
     disasterId: string | null
     bunkerId: string | null
@@ -1510,6 +1902,8 @@ export class GameService {
     presentationDurationSec: number
     votingDurationSec: number
     revealDurationSec: number
+    prepDurationSec: number
+    revealStrategy: string
     presentationPlayerId: string | null
     presentationOrderJson: string
     phaseEndsAt: Date | null
@@ -1519,8 +1913,26 @@ export class GameService {
     lastVoteSummaryJson: string
     createdAt: Date
     updatedAt: Date
-  }) {
+  },
+    opts?: { activeCount?: number },
+  ) {
     const status = normalizeGameStatus(room.status)
+    const lastVoteSummary = this.parseJson<{ seats_needed?: number }>(
+      room.lastVoteSummaryJson,
+      {},
+    )
+    const activeCount = opts?.activeCount ?? 0
+    const plannedEliminations =
+      lastVoteSummary.seats_needed != null &&
+      (status === 'voting' || status === 'vote_result')
+        ? Math.max(1, lastVoteSummary.seats_needed)
+        : eliminationsThisRound({
+            activeCount,
+            shelterCapacity: room.shelterCapacity ?? 0,
+            currentRound: room.currentRound,
+            strategy: room.revealStrategy,
+          })
+
     return {
       id: room.id,
       code: room.code,
@@ -1529,6 +1941,11 @@ export class GameService {
       current_round: room.currentRound,
       max_players: room.maxPlayers,
       shelter_capacity: room.shelterCapacity,
+      planned_rounds: room.plannedRounds,
+      reveal_plan: distributeRevealQuotas(
+        room.plannedRounds && room.plannedRounds > 0 ? room.plannedRounds : 3,
+        room.revealStrategy,
+      ),
       package_id: room.packageId,
       disaster_id: room.disasterId,
       bunker_id: room.bunkerId,
@@ -1536,13 +1953,16 @@ export class GameService {
       presentation_duration_sec: room.presentationDurationSec,
       voting_duration_sec: room.votingDurationSec,
       reveal_duration_sec: room.revealDurationSec,
+      prep_duration_sec: room.prepDurationSec,
+      reveal_strategy: normalizeRevealStrategy(room.revealStrategy),
       presentation_player_id: room.presentationPlayerId,
       presentation_order: this.parseJson<string[]>(room.presentationOrderJson, []),
       phase_ends_at: room.phaseEndsAt?.toISOString() ?? null,
       paused_at: room.pausedAt?.toISOString() ?? null,
       pause_remaining_ms: room.pauseRemainingMs,
       is_paused: Boolean(room.pausedAt),
-      reveal_quota: revealQuotaForRound(room.currentRound),
+      reveal_quota: revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds),
+      eliminations_this_round: plannedEliminations,
       voting_candidate_ids: this.parseJson<string[]>(room.votingCandidateIdsJson, []),
       last_vote_summary: this.parseJson(room.lastVoteSummaryJson, {}),
       created_at: room.createdAt.toISOString(),
@@ -1557,6 +1977,7 @@ export class GameService {
     name: string
     role: string
     status: string
+    isReady?: boolean
     joinedAt: Date
     lastSeenAt: Date | null
     eliminatedAt: Date | null
@@ -1568,9 +1989,31 @@ export class GameService {
       name: player.name,
       role: player.role,
       status: player.status,
+      is_ready: Boolean(player.isReady),
       joined_at: player.joinedAt.toISOString(),
       last_seen_at: player.lastSeenAt?.toISOString() ?? null,
       eliminated_at: player.eliminatedAt?.toISOString() ?? null,
+    }
+  }
+
+  /** Case-insensitive unique nickname within a room (ignores disconnected). */
+  private async assertUniquePlayerName(
+    tx: Prisma.TransactionClient,
+    roomId: string,
+    name: string,
+    exceptPlayerId?: string,
+  ) {
+    const needle = name.trim().toLocaleLowerCase('ru')
+    const players = await tx.player.findMany({
+      where: {
+        roomId,
+        status: { not: 'disconnected' },
+        ...(exceptPlayerId ? { id: { not: exceptPlayerId } } : {}),
+      },
+      select: { id: true, name: true },
+    })
+    if (players.some((p) => p.name.trim().toLocaleLowerCase('ru') === needle)) {
+      throw new GameException('NAME_TAKEN')
     }
   }
 }

@@ -4,8 +4,8 @@ import { useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { GameTimer } from '@/components/game-timer/game-timer'
-import { PlayerCard } from '@/components/player-card/player-card'
-import { PlayersCompare } from '@/features/game/components/players-compare'
+import { DossierBook } from '@/features/game/components/dossier-book'
+import { NotebookProfile } from '@/features/game/components/notebook-profile'
 import { PhaseShell } from '@/features/room/components/phase-shell'
 import { startVotingRequest } from '@/features/room/actions/api-commands'
 import { CHARACTERISTIC_CATEGORIES } from '@/lib/constants'
@@ -47,6 +47,7 @@ export function DiscussionView({
 
   return (
     <PhaseShell
+      wide
       title="Обсуждение"
       subtitle="Спорьте по раскрытым фактам. Таймер серверный — фазу двигает ведущий."
       step={
@@ -67,31 +68,17 @@ export function DiscussionView({
         )
       }
     >
-      <div className="flex flex-col gap-8">
-        <section className="flex flex-col gap-3">
-          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Ваш персонаж
-          </h3>
-          <PlayerCard
+      <DossierBook
+        others={others}
+        characteristics={characteristics}
+        mine={
+          <NotebookProfile
             player={me}
             characteristics={myChars}
-            isSelf
             showHiddenAsOwner
-            columns={2}
           />
-        </section>
-        <section className="flex flex-col gap-3">
-          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Остальные игроки
-          </h3>
-          <PlayersCompare
-            players={others}
-            characteristics={characteristics}
-            revealedOnly
-            emptyLabel="Ещё ничего не раскрыто"
-          />
-        </section>
-      </div>
+        }
+      />
     </PhaseShell>
   )
 }

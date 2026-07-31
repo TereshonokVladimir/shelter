@@ -5,7 +5,6 @@ exports.normalizeRarity = normalizeRarity;
 exports.rarityFromTitle = rarityFromTitle;
 exports.pickWeightedByRarity = pickWeightedByRarity;
 exports.emptyRarityCounts = emptyRarityCounts;
-exports.computeSurvivalChance = computeSurvivalChance;
 exports.TRAIT_RARITIES = [
     'common',
     'uncommon',
@@ -90,16 +89,5 @@ function emptyRarityCounts() {
         legendary: 0,
         mythic: 0,
     };
-}
-function computeSurvivalChance(input) {
-    const roundFactor = input.maxRound > 0 ? input.roundsLasted / input.maxRound : 0;
-    let score = 28 +
-        roundFactor * 32 +
-        (input.survived ? 22 : 0) -
-        input.votesAgainst * 11 +
-        Math.min(18, input.rarityPower * 0.7);
-    if (!input.survived)
-        score -= 8;
-    return Math.max(3, Math.min(97, Math.round(score)));
 }
 //# sourceMappingURL=game.rarity.js.map

@@ -10,6 +10,7 @@
   --font-sans: var(--font-sans), "IBM Plex Sans", sans-serif;
   --font-mono: var(--font-geist-mono), "IBM Plex Mono", ui-monospace, monospace;
   --font-heading: var(--font-display), "Unbounded", sans-serif;
+  --font-hand: var(--font-hand), "Caveat", cursive;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -128,6 +129,27 @@
   html {
     @apply font-sans;
   }
+
+  /* Keep bunker field colors when Chrome/Safari autofill paints white */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  textarea:-webkit-autofill:active,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus,
+  select:-webkit-autofill:active {
+    -webkit-text-fill-color: oklch(0.95 0.01 80) !important;
+    caret-color: oklch(0.95 0.01 80);
+    box-shadow: 0 0 0 1000px oklch(0.18 0.014 55) inset !important;
+    -webkit-box-shadow: 0 0 0 1000px oklch(0.18 0.014 55) inset !important;
+    border-color: oklch(0.55 0.08 75 / 0.4) !important;
+    transition: background-color 99999s ease-in-out 0s;
+  }
 }
 
 /* Hide scrollbars while keeping scroll (room panels, Mac overlay bars) */
@@ -139,6 +161,1090 @@
   display: none;
   width: 0;
   height: 0;
+}
+
+/* Sonner — bunker console chip */
+[data-sonner-toaster][data-y-position='top'] {
+  top: 0.75rem;
+}
+
+[data-sonner-toast].bunker-toast,
+[data-sonner-toast].cn-toast {
+  --normal-bg: oklch(0.2 0.014 55 / 0.96);
+  --normal-text: oklch(0.95 0.01 80);
+  --normal-border: oklch(0.55 0.08 75 / 0.35);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-sonner-toast].bunker-toast::before,
+[data-sonner-toast].cn-toast::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    -45deg,
+    oklch(0.78 0.14 75),
+    oklch(0.78 0.14 75) 6px,
+    oklch(0.18 0.02 55) 6px,
+    oklch(0.18 0.02 55) 12px
+  );
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Bunker dossier hint (tooltips) */
+.bunker-hint {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.4rem;
+  border: 1px solid oklch(0.55 0.08 75 / 0.45);
+  background:
+    linear-gradient(165deg, oklch(0.26 0.025 55 / 0.98), oklch(0.18 0.015 55 / 0.98));
+  color: oklch(0.93 0.02 80);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(253, 224, 71, 0.12);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.35;
+}
+
+.bunker-hint::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background: repeating-linear-gradient(
+    -45deg,
+    oklch(0.78 0.14 75),
+    oklch(0.78 0.14 75) 5px,
+    oklch(0.18 0.02 55) 5px,
+    oklch(0.18 0.02 55) 10px
+  );
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.bunker-hint-arrow {
+  border: 1px solid oklch(0.55 0.08 75 / 0.45);
+  background: oklch(0.22 0.02 55);
+  fill: oklch(0.22 0.02 55);
+}
+
+.bunker-hint-kicker {
+  display: block;
+  margin-bottom: 0.15rem;
+  color: oklch(0.72 0.08 75);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+}
+
+/* Dossier notebook — leather cover + paper pages */
+.dossier-notebook {
+  --nb-paper: oklch(0.94 0.018 88);
+  --nb-paper-deep: oklch(0.9 0.024 82);
+  --nb-line: oklch(0.62 0.05 235 / 0.28);
+  --nb-margin: oklch(0.58 0.16 25 / 0.5);
+  --nb-ink: oklch(0.22 0.035 255);
+  --nb-ink-soft: oklch(0.32 0.03 250);
+  --nb-ink-mute: oklch(0.4 0.025 250 / 0.78);
+  --nb-cover: oklch(0.24 0.035 55);
+  --nb-cover-soft: oklch(0.3 0.03 55);
+  position: relative;
+  border-radius: 0.7rem 1rem 1rem 0.7rem;
+  background:
+    linear-gradient(90deg, oklch(0.14 0.02 50) 0 0.62rem, transparent 0.62rem),
+    radial-gradient(ellipse at 20% 0%, oklch(0.34 0.04 60 / 0.55), transparent 42%),
+    radial-gradient(circle at 85% 18%, oklch(0.18 0.02 50 / 0.55), transparent 28%),
+    radial-gradient(ellipse at 70% 90%, oklch(0.16 0.02 45 / 0.4), transparent 35%),
+    linear-gradient(165deg, var(--nb-cover-soft), var(--nb-cover));
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 220, 170, 0.1);
+}
+
+.dossier-notebook-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.7rem 0.85rem 0;
+  background:
+    linear-gradient(180deg, oklch(0.2 0.03 55), oklch(0.22 0.028 55));
+  border-bottom: 1px solid oklch(0.38 0.03 55 / 0.65);
+}
+
+.dossier-notebook-brand {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-inline: 0.15rem;
+}
+
+.dossier-notebook-brand-title {
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.55rem;
+  line-height: 1;
+  color: oklch(0.9 0.03 85);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.dossier-notebook-brand-meta {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: oklch(0.7 0.04 75 / 0.75);
+}
+
+.dossier-notebook-tabs {
+  display: flex;
+  width: 100%;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0;
+}
+
+/* Equal-width tabs, flush — no overlap */
+.dossier-notebook-tab {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  margin-bottom: -1px;
+  margin-right: -1px;
+  min-height: 2rem;
+  justify-content: center !important;
+  border: 1px solid oklch(0.72 0.03 85 / 0.32);
+  border-bottom: none;
+  border-radius: 0.65rem 0.65rem 0 0;
+  background:
+    linear-gradient(180deg, oklch(0.78 0.02 85 / 0.35), oklch(0.42 0.025 60 / 0.55));
+  color: oklch(0.86 0.02 85);
+  padding: 0.4rem 0.55rem 0.5rem;
+  font-family: var(--font-hand), Caveat, cursive !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.dossier-notebook-tab:last-child {
+  margin-right: 0;
+}
+
+.dossier-notebook-tab:hover {
+  background: linear-gradient(180deg, oklch(0.86 0.02 88 / 0.45), oklch(0.5 0.03 60 / 0.6));
+  color: oklch(0.96 0.02 90);
+}
+
+.dossier-notebook-tab[data-active],
+.dossier-notebook-tab[data-active='true'] {
+  z-index: 2;
+  background: var(--nb-paper) !important;
+  color: var(--nb-ink) !important;
+  border-color: oklch(0.78 0.03 85 / 0.65);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 -1px 0 var(--nb-paper);
+}
+
+.dossier-notebook-page {
+  --nb-grid: oklch(0.55 0.04 230 / 0.16);
+  position: relative;
+  isolation: isolate;
+  color: var(--nb-ink);
+  background:
+    /* hand-ish vertical grid (slightly uneven spacing via layered grids) */
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 5.35rem,
+      var(--nb-grid) 5.35rem,
+      var(--nb-grid) calc(5.35rem + 1px)
+    ),
+    repeating-linear-gradient(
+      92deg,
+      transparent,
+      transparent 5.5rem,
+      oklch(0.55 0.04 230 / 0.07) 5.5rem,
+      oklch(0.55 0.04 230 / 0.07) calc(5.5rem + 1px)
+    ),
+    linear-gradient(90deg, transparent 2.15rem, var(--nb-margin) 2.15rem, var(--nb-margin) calc(2.15rem + 1.5px), transparent calc(2.15rem + 1.5px)),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1.7rem,
+      var(--nb-line) 1.7rem,
+      var(--nb-line) calc(1.7rem + 1px)
+    ),
+    /* paper grain / yellowing */
+    radial-gradient(ellipse at 12% 8%, oklch(0.78 0.06 75 / 0.18), transparent 42%),
+    radial-gradient(ellipse at 88% 92%, oklch(0.72 0.05 55 / 0.16), transparent 45%),
+    linear-gradient(180deg, oklch(0.96 0.014 90), var(--nb-paper) 38%, var(--nb-paper-deep));
+  box-shadow: inset 0 0 40px oklch(0.55 0.04 70 / 0.1);
+}
+
+.dossier-notebook-page::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: 0.85rem;
+  background:
+    radial-gradient(circle at 50% 1.1rem, oklch(0.35 0.02 55 / 0.35) 0 0.18rem, transparent 0.2rem),
+    radial-gradient(circle at 50% 3.3rem, oklch(0.35 0.02 55 / 0.35) 0 0.18rem, transparent 0.2rem),
+    radial-gradient(circle at 50% 5.5rem, oklch(0.35 0.02 55 / 0.35) 0 0.18rem, transparent 0.2rem),
+    radial-gradient(circle at 50% 7.7rem, oklch(0.35 0.02 55 / 0.35) 0 0.18rem, transparent 0.2rem),
+    linear-gradient(90deg, oklch(0.82 0.03 80 / 0.55), transparent);
+  pointer-events: none;
+}
+
+/* ink blots + scuffs on the page */
+.dossier-notebook-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  background:
+    radial-gradient(ellipse 2.2rem 1.4rem at 78% 14%, oklch(0.28 0.04 255 / 0.14), transparent 70%),
+    radial-gradient(circle 0.55rem at 72% 16%, oklch(0.25 0.05 255 / 0.18), transparent 70%),
+    radial-gradient(circle 0.28rem at 81% 18%, oklch(0.22 0.04 255 / 0.16), transparent 70%),
+    radial-gradient(ellipse 3rem 1.8rem at 18% 72%, oklch(0.3 0.05 250 / 0.1), transparent 72%),
+    radial-gradient(circle 0.7rem at 22% 76%, oklch(0.26 0.05 255 / 0.12), transparent 68%),
+    radial-gradient(ellipse 4rem 2rem at 92% 68%, oklch(0.45 0.04 55 / 0.12), transparent 70%),
+    radial-gradient(ellipse 5rem 2.4rem at 40% 96%, oklch(0.5 0.03 70 / 0.1), transparent 72%),
+    radial-gradient(circle 1.1rem at 8% 28%, oklch(0.55 0.04 80 / 0.1), transparent 70%);
+  mix-blend-mode: multiply;
+}
+
+.dossier-notebook-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dossier-hand {
+  font-family: var(--font-hand), Caveat, cursive;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* characteristic table: continuous pen seams (full row / full column) */
+.dossier-traits {
+  --nb-pen-h: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='8' viewBox='0 0 160 8' preserveAspectRatio='none'%3E%3Cpath d='M0 4.2 C12 2.1 18 5.8 28 3.9 C38 2.1 44 5.4 54 4.1 C66 2.4 72 5.7 84 3.6 C96 1.8 104 5.5 116 4 C128 2.6 136 5.2 148 3.8 C154 3.1 158 4.6 160 4' fill='none' stroke='%232a3350' stroke-width='1.15' stroke-linecap='round' opacity='0.42'/%3E%3Cpath d='M0 4.5 C14 3 22 5.2 34 4.3 C48 3.2 58 5.6 70 4 C82 2.6 94 5.4 108 4.2 C122 3 132 5.1 146 4.1 C154 3.6 158 4.8 160 4.4' fill='none' stroke='%231c2438' stroke-width='0.7' stroke-linecap='round' opacity='0.28'/%3E%3C/svg%3E");
+  --nb-pen-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='160' viewBox='0 0 8 160' preserveAspectRatio='none'%3E%3Cpath d='M4.2 0 C2.1 12 5.8 18 3.9 28 C2.1 38 5.4 44 4.1 54 C2.4 66 5.7 72 3.6 84 C1.8 96 5.5 104 4 116 C2.6 128 5.2 136 3.8 148 C3.1 154 4.6 158 4 160' fill='none' stroke='%232a3350' stroke-width='1.15' stroke-linecap='round' opacity='0.42'/%3E%3Cpath d='M4.5 0 C3 14 5.2 22 4.3 34 C3.2 48 5.6 58 4 70 C2.6 82 5.4 94 4.2 108 C3 122 5.1 132 4.1 146 C3.6 154 4.8 158 4.4 160' fill='none' stroke='%231c2438' stroke-width='0.7' stroke-linecap='round' opacity='0.28'/%3E%3C/svg%3E");
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+@media (min-width: 640px) {
+  .dossier-traits:not(.dossier-traits--compact) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dossier-traits:not(.dossier-traits--compact) {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* continuous vertical pen line(s) down the whole table */
+.dossier-traits:not(.dossier-traits--compact)::before,
+.dossier-traits:not(.dossier-traits--compact)::after {
+  content: '';
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  width: 7px;
+  background: var(--nb-pen-v) center / 100% 100% no-repeat;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.9;
+  display: none;
+}
+
+@media (min-width: 640px) and (max-width: 1279.98px) {
+  .dossier-traits:not(.dossier-traits--compact)::before {
+    display: block;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@media (min-width: 1280px) {
+  .dossier-traits:not(.dossier-traits--compact)::before {
+    display: block;
+    left: 33.333%;
+    transform: translateX(-50%);
+  }
+  .dossier-traits:not(.dossier-traits--compact)::after {
+    display: block;
+    left: 66.666%;
+    transform: translateX(-50%);
+  }
+}
+
+.dossier-entry {
+  position: relative;
+  z-index: 1;
+  min-height: 4.5rem;
+  padding: 1rem 1.15rem 1.15rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/*
+ * One continuous horizontal pen line per row:
+ * drawn only by the first cell, stretched across all columns.
+ */
+.dossier-entry::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 7px;
+  background: var(--nb-pen-h) center / 100% 100% no-repeat;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.9;
+  width: 100%;
+}
+
+@media (min-width: 640px) and (max-width: 1279.98px) {
+  .dossier-traits:not(.dossier-traits--compact) .dossier-entry::after {
+    display: none;
+  }
+  .dossier-traits:not(.dossier-traits--compact) .dossier-entry:nth-child(2n + 1)::after {
+    display: block;
+    width: 200%;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dossier-traits:not(.dossier-traits--compact) .dossier-entry::after {
+    display: none;
+  }
+  .dossier-traits:not(.dossier-traits--compact) .dossier-entry:nth-child(3n + 1)::after {
+    display: block;
+    width: 300%;
+  }
+}
+
+.dossier-entry-cat {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: oklch(0.42 0.09 30);
+}
+
+.dossier-entry-title {
+  margin-top: 0.1rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--nb-ink);
+}
+
+.dossier-entry-body {
+  margin-top: 0.15rem;
+  font-size: 1.12rem;
+  font-weight: 500;
+  color: var(--nb-ink-soft);
+}
+
+.dossier-entry-hidden .dossier-entry-title {
+  color: var(--nb-ink-mute);
+  font-style: italic;
+}
+
+/* pen annotation instead of UI button */
+.dossier-reveal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.35rem;
+  border: none;
+  border-bottom: 1.5px solid oklch(0.4 0.1 30 / 0.55);
+  border-radius: 0;
+  background: transparent;
+  color: oklch(0.38 0.1 30);
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transform: rotate(-2deg);
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.dossier-reveal-btn:hover:not(:disabled) {
+  color: oklch(0.32 0.12 28);
+  border-bottom-color: oklch(0.35 0.12 28 / 0.8);
+  transform: rotate(-2deg) translateY(1px);
+}
+
+.dossier-reveal-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dossier-reveal-btn:focus-visible {
+  outline: 1.5px dashed oklch(0.4 0.08 30 / 0.55);
+  outline-offset: 3px;
+}
+
+.dossier-opened-mark {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: oklch(0.38 0.08 145 / 0.75);
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  transform: rotate(8deg);
+}
+
+/* Paper sheet panel (prep / dossier drawer) */
+.dossier-paper-sheet {
+  --nb-paper: oklch(0.94 0.018 88);
+  --nb-paper-deep: oklch(0.9 0.024 82);
+  --nb-line: oklch(0.62 0.05 235 / 0.28);
+  --nb-margin: oklch(0.58 0.16 25 / 0.5);
+  --nb-ink: oklch(0.22 0.035 255);
+  --nb-ink-soft: oklch(0.32 0.03 250);
+  --nb-ink-mute: oklch(0.4 0.025 250 / 0.78);
+  overflow: hidden;
+  color: var(--nb-ink);
+  background:
+    radial-gradient(ellipse 2rem 1.2rem at 80% 12%, oklch(0.28 0.04 255 / 0.12), transparent 70%),
+    radial-gradient(ellipse 3rem 1.6rem at 20% 85%, oklch(0.3 0.04 250 / 0.08), transparent 72%),
+    linear-gradient(90deg, transparent 1.8rem, var(--nb-margin) 1.8rem, var(--nb-margin) calc(1.8rem + 1.5px), transparent calc(1.8rem + 1.5px)),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1.7rem,
+      var(--nb-line) 1.7rem,
+      var(--nb-line) calc(1.7rem + 1px)
+    ),
+    linear-gradient(180deg, oklch(0.97 0.012 92), var(--nb-paper) 40%, var(--nb-paper-deep));
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Player block on notebook page — light wash so page still reads through */
+.dossier-paper-player {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.35rem;
+  border: 1.5px solid oklch(0.35 0.04 255 / 0.28);
+  background: oklch(0.98 0.012 92 / 0.38);
+  box-shadow: 0 1px 0 oklch(0.75 0.02 85 / 0.28);
+  color: var(--nb-ink);
+}
+
+.dossier-paper-player[data-focus] {
+  border-color: oklch(0.42 0.12 45 / 0.55);
+  background: oklch(0.98 0.014 90 / 0.5);
+  box-shadow: 0 0 0 1px oklch(0.5 0.1 50 / 0.2);
+}
+
+.dossier-carousel-track {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dossier-carousel-card {
+  flex: 0 0 min(100%, 22rem);
+  width: min(100%, 22rem);
+  padding: 0.85rem 1rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .dossier-carousel-card {
+    flex-basis: min(100%, 26rem);
+    width: min(100%, 26rem);
+    padding: 1rem 1.15rem 1.15rem;
+  }
+}
+
+.dossier-carousel-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1.5px solid oklch(0.35 0.04 255 / 0.28);
+  border-radius: 999px;
+  background: oklch(0.98 0.012 92 / 0.45);
+  color: oklch(0.32 0.04 255);
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.dossier-carousel-nav:hover:not(:disabled) {
+  background: oklch(0.98 0.012 92 / 0.7);
+  border-color: oklch(0.4 0.08 45 / 0.45);
+}
+
+.dossier-carousel-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.dossier-carousel-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 10rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid oklch(0.35 0.04 255 / 0.22);
+  border-radius: 999px;
+  background: oklch(0.98 0.012 92 / 0.28);
+  color: var(--nb-ink);
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.dossier-carousel-chip:hover {
+  background: oklch(0.98 0.012 92 / 0.48);
+}
+
+.dossier-carousel-chip--active {
+  border-color: oklch(0.42 0.12 45 / 0.55);
+  background: oklch(0.98 0.014 90 / 0.62);
+  box-shadow: 0 0 0 1px oklch(0.5 0.1 50 / 0.15);
+}
+
+.action-ticket-card {
+  position: relative;
+  width: 100%;
+  max-width: 14rem;
+  overflow: hidden;
+  border-radius: 0.55rem;
+  border: 1px dashed oklch(0.45 0.08 45 / 0.55);
+  background:
+    radial-gradient(circle at 12% 18%, oklch(0.72 0.1 70 / 0.22), transparent 40%),
+    linear-gradient(165deg, oklch(0.96 0.02 90), oklch(0.9 0.03 80));
+  color: var(--nb-ink);
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.action-ticket-card:not([data-used]):hover {
+  transform: translateY(-3px) rotate(-0.8deg);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22);
+}
+
+.action-ticket-card[data-used] {
+  opacity: 0.55;
+  filter: grayscale(0.2);
+}
+
+.action-ticket-stamp {
+  display: inline-flex;
+  border: 1.5px solid oklch(0.45 0.12 30 / 0.55);
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: oklch(0.42 0.12 30);
+  transform: rotate(-3deg);
+}
+
+/* Vote result — exile dossier sheet + torn ballot scraps */
+.exile-sheet {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 0.35rem 0.55rem 0.4rem 0.5rem;
+  min-height: 12rem;
+}
+
+.exile-sheet-body {
+  position: relative;
+  z-index: 1;
+  /* match dossier notebook page padding */
+  padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .exile-sheet-body {
+    padding: 2.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .exile-sheet-body {
+    padding: 3rem;
+  }
+}
+
+.exile-sheet-body .dossier-traits {
+  opacity: 0.88;
+}
+
+.exile-stamp {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+}
+
+.exile-stamp-mark {
+  position: relative;
+  display: inline-block;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.45rem 1rem 0.35rem;
+  border: 3px double oklch(0.42 0.19 25 / 0.78);
+  border-radius: 0.2rem;
+  color: oklch(0.4 0.2 22 / 0.78);
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(1.85rem, 5.5vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-align: center;
+  transform: rotate(-16deg);
+  mix-blend-mode: multiply;
+  box-shadow:
+    inset 0 0 0 1px oklch(0.42 0.18 25 / 0.25),
+    0 0 0 1px oklch(0.42 0.18 25 / 0.12);
+  text-shadow: 0 1px 0 oklch(0.3 0.12 20 / 0.15);
+  animation: exile-stamp-in 720ms cubic-bezier(0.22, 1, 0.36, 1) 180ms both;
+}
+
+.exile-stamp-mark::after {
+  content: '';
+  position: absolute;
+  inset: -0.35rem -0.55rem;
+  border: 1px solid oklch(0.42 0.18 25 / 0.35);
+  border-radius: 0.25rem;
+  transform: rotate(1.5deg);
+}
+
+@keyframes exile-stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.55) rotate(-8deg);
+    filter: blur(1px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.94) rotate(-17deg);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-16deg);
+    filter: blur(0);
+  }
+}
+
+.vote-scraps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.85rem 1rem;
+  padding: 0.35rem 0.25rem 0.5rem;
+}
+
+.vote-scrap {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  /* keep text well inside shallow torn edges */
+  padding: 1.65rem 1.9rem 1.55rem 2rem;
+  color: var(--nb-ink, oklch(0.22 0.035 255));
+  background:
+    radial-gradient(ellipse 2rem 1rem at 18% 20%, oklch(0.55 0.04 70 / 0.12), transparent 70%),
+    radial-gradient(ellipse 2.5rem 1.2rem at 88% 80%, oklch(0.5 0.03 55 / 0.1), transparent 72%),
+    linear-gradient(165deg, oklch(0.96 0.016 92), oklch(0.91 0.024 82));
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  /* one shared tilt so scraps don't collide */
+  transform: rotate(-1.6deg);
+  /* shallow torn edges — bites stay near the rim */
+  clip-path: polygon(
+    0% 4%,
+    4% 1%,
+    9% 3%,
+    15% 0%,
+    22% 2.5%,
+    30% 0.5%,
+    38% 3%,
+    46% 0%,
+    55% 2.5%,
+    63% 0.5%,
+    72% 3%,
+    80% 0%,
+    88% 2.5%,
+    94% 0.5%,
+    100% 3%,
+    99.5% 18%,
+    100% 35%,
+    99% 52%,
+    100% 68%,
+    99.5% 85%,
+    100% 97%,
+    94% 100%,
+    86% 98%,
+    78% 100%,
+    70% 97.5%,
+    62% 100%,
+    54% 98%,
+    46% 100%,
+    38% 97.5%,
+    30% 100%,
+    22% 98%,
+    14% 100%,
+    7% 98%,
+    0% 100%,
+    0.5% 82%,
+    0% 65%,
+    1% 48%,
+    0% 32%,
+    0.5% 16%
+  );
+}
+
+.vote-scrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1.15rem,
+      oklch(0.55 0.04 230 / 0.18) 1.15rem,
+      oklch(0.55 0.04 230 / 0.18) calc(1.15rem + 1px)
+    );
+  mix-blend-mode: multiply;
+}
+
+.vote-scrap-name {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--nb-ink, oklch(0.22 0.035 255));
+}
+
+.vote-scrap-votes {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1;
+  color: oklch(0.35 0.08 30);
+  transform: rotate(3deg);
+}
+
+.vote-scrap--top {
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 0 1px oklch(0.45 0.12 25 / 0.18);
+}
+
+.vote-scrap--top .vote-scrap-votes {
+  color: oklch(0.4 0.18 22);
+}
+
+.vote-scraps-label {
+  margin-bottom: 0.15rem;
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: oklch(0.82 0.03 85 / 0.85);
+}
+
+/* Voting phase — paper ballot cards */
+.vote-ballot-progress {
+  --nb-ink: oklch(0.22 0.035 255);
+  position: relative;
+  max-width: 28rem;
+  padding: 0.95rem 1.15rem 0.9rem;
+  border: 1px solid oklch(0.55 0.04 70 / 0.28);
+  border-radius: 0.2rem 0.45rem 0.35rem 0.3rem;
+  color: var(--nb-ink);
+  background:
+    radial-gradient(ellipse 2rem 1rem at 12% 20%, oklch(0.55 0.04 70 / 0.1), transparent 70%),
+    linear-gradient(165deg, oklch(0.96 0.016 92), oklch(0.91 0.024 82));
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: rotate(-0.6deg);
+}
+
+.vote-ballot-progress-label {
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1;
+  color: oklch(0.32 0.04 255);
+}
+
+.vote-ballot-progress-count {
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: oklch(0.35 0.1 30);
+}
+
+.vote-ballot-progress-track {
+  position: relative;
+  margin-top: 0.7rem;
+  height: 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: oklch(0.55 0.03 70 / 0.22);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.vote-ballot-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, oklch(0.45 0.1 45), oklch(0.62 0.14 70));
+  transition: width 280ms ease;
+}
+
+.vote-ballot-progress-hint {
+  margin-top: 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: oklch(0.4 0.03 250 / 0.85);
+}
+
+.vote-ballot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.85rem 1rem;
+}
+
+.vote-ballot {
+  --ballot-tilt: -0.8deg;
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 11.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.15rem 1.35rem 1.05rem 1.2rem;
+  border: none;
+  color: oklch(0.22 0.035 255);
+  background:
+    radial-gradient(ellipse 1.8rem 1rem at 16% 22%, oklch(0.55 0.04 70 / 0.1), transparent 70%),
+    linear-gradient(165deg, oklch(0.97 0.014 92), oklch(0.91 0.024 82));
+  box-shadow:
+    0 7px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  transform: rotate(var(--ballot-tilt));
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+  clip-path: polygon(
+    0% 4%,
+    5% 1%,
+    12% 3%,
+    20% 0%,
+    30% 2.5%,
+    42% 0.5%,
+    55% 3%,
+    68% 0%,
+    80% 2.5%,
+    92% 0.5%,
+    100% 3%,
+    99.5% 22%,
+    100% 48%,
+    99% 72%,
+    100% 96%,
+    92% 100%,
+    80% 97.5%,
+    68% 100%,
+    55% 98%,
+    42% 100%,
+    30% 97.5%,
+    18% 100%,
+    8% 98%,
+    0% 100%,
+    0.5% 72%,
+    0% 45%,
+    1% 22%
+  );
+  cursor: pointer;
+}
+
+.vote-ballot:hover:not(:disabled) {
+  transform: rotate(var(--ballot-tilt)) translateY(-2px);
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.vote-ballot:disabled {
+  cursor: not-allowed;
+}
+
+.vote-ballot--self {
+  opacity: 0.48;
+  filter: grayscale(0.25);
+}
+
+.vote-ballot--selected {
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 0 1px oklch(0.55 0.14 45 / 0.45);
+}
+
+.vote-ballot--cast {
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 0 1px oklch(0.45 0.12 145 / 0.4);
+}
+
+.vote-ballot-mark {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid oklch(0.35 0.05 255 / 0.45);
+  border-radius: 0.15rem;
+  background: oklch(1 0.01 95 / 0.45);
+  color: oklch(0.28 0.05 255);
+}
+
+.vote-ballot--selected .vote-ballot-mark,
+.vote-ballot--cast .vote-ballot-mark {
+  border-color: oklch(0.42 0.14 45 / 0.7);
+  background: oklch(0.72 0.14 70);
+  color: oklch(0.18 0.03 50);
+}
+
+.vote-ballot-name {
+  display: block;
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: oklch(0.22 0.035 255);
+}
+
+.vote-ballot-meta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: oklch(0.42 0.04 250 / 0.8);
+}
+
+.vote-ballot--selected .vote-ballot-meta {
+  color: oklch(0.4 0.1 45);
+}
+
+.vote-ballot--cast .vote-ballot-meta {
+  color: oklch(0.38 0.1 145);
+}
+
+.vote-cast-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid oklch(0.45 0.1 145 / 0.4);
+  border-radius: 0.35rem;
+  background: oklch(0.28 0.05 145 / 0.28);
+  color: oklch(0.88 0.04 145);
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.vote-confirm-dialog {
+  border-color: oklch(0.55 0.06 55 / 0.45);
+}
+
+/* Thin visible scrollbar for phase body / sheets */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(120 113 108 / 0.45) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(120 113 108 / 0.45);
+  border-radius: 999px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Animate shadcn Resizable side panels on collapse/expand (not while dragging) */
@@ -166,16 +1272,16 @@
 
 @keyframes bunker-trait-reveal {
   0% {
-    transform: rotateX(72deg) scale(0.96);
-    filter: brightness(0.45);
+    filter: brightness(0.55) saturate(0.6);
+    opacity: 0.7;
   }
   55% {
-    transform: rotateX(-8deg) scale(1.02);
-    filter: brightness(1.15);
+    filter: brightness(1.2) saturate(1.15);
+    opacity: 1;
   }
   100% {
-    transform: rotateX(0) scale(1);
-    filter: brightness(1);
+    filter: brightness(1) saturate(1);
+    opacity: 1;
   }
 }
 
@@ -198,11 +1304,11 @@
   0%,
   100% {
     border-color: color-mix(in oklab, var(--destructive) 55%, transparent);
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 0%, transparent);
+    box-shadow: inset 0 0 0 0 color-mix(in oklab, var(--destructive) 0%, transparent);
   }
   50% {
     border-color: color-mix(in oklab, var(--destructive) 85%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--destructive) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--destructive) 35%, transparent);
   }
 }
 
@@ -230,7 +1336,7 @@
 }
 
 .bunker-trait-reveal {
-  transform-style: preserve-3d;
+  transform-origin: center;
   animation: bunker-trait-reveal 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -245,6 +1351,7 @@
 .bunker-atmosphere {
   position: relative;
   isolation: isolate;
+  background-color: #14110e;
 }
 
 .bunker-atmosphere::before {
@@ -253,11 +1360,12 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.45;
+  opacity: 0.55;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(180, 90, 30, 0.28), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 85% 90%, rgba(60, 30, 15, 0.35), transparent 50%),
-    linear-gradient(180deg, #16120f 0%, #1f1914 45%, #14110e 100%);
+    radial-gradient(ellipse 90% 55% at 50% -8%, rgba(196, 105, 35, 0.32), transparent 58%),
+    radial-gradient(ellipse 50% 45% at 12% 70%, rgba(80, 40, 18, 0.28), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 92% 88%, rgba(45, 28, 16, 0.4), transparent 52%),
+    linear-gradient(180deg, #1a1511 0%, #221b15 42%, #12100d 100%);
   animation: bunker-embers 7s ease-in-out infinite;
 }
 
@@ -267,22 +1375,84 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.07;
+  opacity: 0.11;
   background-image:
-    linear-gradient(rgba(255, 220, 170, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 220, 170, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+    linear-gradient(rgba(255, 220, 170, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 220, 170, 0.06) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse at center, black 22%, transparent 82%);
 }
 
+/* Hazard tape — yellow/black flag stripe */
 .bunker-hazard-stripe {
+  background-color: rgba(28, 25, 23, 0.85);
   background-image: repeating-linear-gradient(
     -45deg,
-    rgba(245, 158, 11, 0.16),
-    rgba(245, 158, 11, 0.16) 8px,
-    rgba(28, 25, 23, 0.35) 8px,
-    rgba(28, 25, 23, 0.35) 16px
+    rgba(245, 158, 11, 0.92),
+    rgba(245, 158, 11, 0.92) 7px,
+    rgba(28, 25, 23, 0.95) 7px,
+    rgba(28, 25, 23, 0.95) 14px
   );
+  box-shadow:
+    inset 0 1px 0 rgba(253, 224, 71, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.bunker-hazard-stripe-soft {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(245, 158, 11, 0.22),
+    rgba(245, 158, 11, 0.22) 8px,
+    rgba(28, 25, 23, 0.4) 8px,
+    rgba(28, 25, 23, 0.4) 16px
+  );
+}
+
+/* Metal plate panel with optional crop noise */
+.bunker-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(146, 64, 14, 0.38);
+  background:
+    linear-gradient(180deg, rgba(41, 37, 36, 0.72), rgba(28, 25, 23, 0.88)),
+    oklch(0.24 0.014 55);
+  box-shadow:
+    inset 0 1px 0 rgba(251, 191, 36, 0.1),
+    0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+/* Phase shell: allow vertical scroll (overrides .bunker-panel overflow) */
+.bunker-panel.scrollbar-thin {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.bunker-panel::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+/* Eyebrow / stencil label */
+.bunker-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(251, 191, 36, 0.72);
+}
+
+.bunker-label-muted {
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(168, 162, 158, 0.75);
 }
 
 .bunker-scan {
@@ -376,9 +1546,20 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.35;
+  opacity: 0.42;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   mix-blend-mode: overlay;
+}
+
+/* Crop vignette on top of dust — edges darker like a photo crop */
+.bunker-crop {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 75% 70% at 50% 40%, transparent 35%, rgba(8, 6, 5, 0.55) 100%),
+    linear-gradient(180deg, rgba(8, 6, 5, 0.25) 0%, transparent 18%, transparent 78%, rgba(8, 6, 5, 0.45) 100%);
 }
 
 @keyframes finale-stat-in {
@@ -396,161 +1577,496 @@
   animation: finale-stat-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* ——— Trait tiles: rarity finish (TCG-inspired) + sealed/open ——— */
+/* Survivor clearance plaque — metal frame, not paper */
+.survivor-frame {
+  --nb-ink: oklch(0.93 0.02 90);
+  --nb-ink-soft: oklch(0.78 0.025 85);
+  --nb-ink-mute: oklch(0.62 0.02 80 / 0.85);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 0.35rem;
+  border: 1px solid oklch(0.72 0.12 75 / 0.45);
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 0%, oklch(0.45 0.08 75 / 0.22), transparent 55%),
+    linear-gradient(165deg, oklch(0.28 0.03 55), oklch(0.16 0.02 50) 55%, oklch(0.12 0.018 45));
+  box-shadow:
+    0 0 0 1px oklch(0.2 0.02 50 / 0.85),
+    0 14px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 oklch(0.85 0.08 85 / 0.18);
+  color: var(--nb-ink);
+}
 
-.trait-tile {
+.survivor-frame-edge {
+  pointer-events: none;
+  position: absolute;
+  inset: 0.35rem;
+  z-index: 0;
+  border: 1px solid oklch(0.75 0.1 75 / 0.22);
+  border-radius: 0.2rem;
+  box-shadow: inset 0 0 24px oklch(0.55 0.08 70 / 0.08);
+}
+
+.survivor-frame-corner {
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-color: oklch(0.82 0.12 80 / 0.75);
+  border-style: solid;
+}
+
+.survivor-frame-corner-tl {
+  top: 0.45rem;
+  left: 0.45rem;
+  border-width: 2px 0 0 2px;
+}
+
+.survivor-frame-corner-tr {
+  top: 0.45rem;
+  right: 0.45rem;
+  border-width: 2px 2px 0 0;
+}
+
+.survivor-frame-corner-bl {
+  bottom: 0.45rem;
+  left: 0.45rem;
+  border-width: 0 0 2px 2px;
+}
+
+.survivor-frame-corner-br {
+  bottom: 0.45rem;
+  right: 0.45rem;
+  border-width: 0 2px 2px 0;
+}
+
+.survivor-frame-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem 1.1rem 1.05rem;
+}
+
+.survivor-frame-head {
+  border-bottom: 1px solid oklch(0.72 0.1 75 / 0.28);
+  padding-bottom: 0.65rem;
+}
+
+.survivor-frame-seal {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: oklch(0.82 0.12 80 / 0.85);
+}
+
+.survivor-frame-name {
+  margin-top: 0.2rem;
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.45rem;
+  letter-spacing: 0.04em;
+  color: oklch(0.96 0.02 90);
+  text-shadow: 0 0 18px oklch(0.75 0.12 75 / 0.35);
+}
+
+.survivor-frame-meta {
+  margin-top: 0.2rem;
+  font-family: var(--font-hand), Caveat, cursive;
+  font-size: 1.15rem;
+  color: oklch(0.78 0.06 85 / 0.9);
+}
+
+.survivor-frame-body {
+  min-width: 0;
+}
+
+.survivor-frame-body .dossier-entry-cat {
+  color: oklch(0.72 0.08 75 / 0.9);
+}
+
+.survivor-frame-body .dossier-entry::after {
+  opacity: 0.45;
+  filter: invert(0.15) sepia(1) saturate(2) hue-rotate(5deg);
+}
+
+.survivor-frame-body header {
+  display: none;
+}
+
+@keyframes finale-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(-12deg);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.92) rotate(-6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+  }
+}
+
+.finale-stamp {
+  animation: finale-stamp 700ms cubic-bezier(0.22, 1, 0.36, 1) 0.85s both;
+}
+
+@keyframes finale-gauge-fill {
+  from {
+    width: 0%;
+  }
+}
+
+.finale-gauge-fill {
+  animation: finale-gauge-fill 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes finale-pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 28px 2px color-mix(in oklab, var(--finale-glow, #34d399) 35%, transparent);
+  }
+}
+
+.finale-verdict-glow {
+  animation: finale-pulse-glow 2.4s ease-in-out 1.2s 2;
+}
+
+@keyframes finale-chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.finale-chip {
+  animation: finale-chip-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Cyberpunk radial gauge (finale) */
+.cyber-radial {
+  clip-path: polygon(
+    0 10px,
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 211, 238, 0.12),
+    0 0 24px rgba(34, 211, 238, 0.08);
+}
+
+.cyber-radial-corner {
+  pointer-events: none;
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: oklch(0.78 0.14 220);
+  border-style: solid;
+  opacity: 0.75;
+}
+.cyber-radial-corner-tl {
+  top: 0;
+  left: 0;
+  border-width: 1.5px 0 0 1.5px;
+}
+.cyber-radial-corner-tr {
+  top: 0;
+  right: 0;
+  border-width: 1.5px 1.5px 0 0;
+}
+.cyber-radial-corner-bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 1.5px 1.5px;
+}
+.cyber-radial-corner-br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+.cyber-radial-scan {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(34, 211, 238, 0.03) 2px,
+    rgba(34, 211, 238, 0.03) 3px
+  );
+  mix-blend-mode: screen;
+}
+
+@keyframes cyber-radial-draw {
+  from {
+    stroke-dasharray: 0 999;
+  }
+}
+
+.cyber-radial-fill {
+  animation: cyber-radial-draw 1.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ——— Trait cards: rarity owns the whole frame (TCG / bunker print) ——— */
+
+.trait-card {
   position: relative;
   overflow: hidden;
-  border-radius: 0.5rem;
-  border-width: 1px;
+  border-radius: 0.65rem;
+  border-width: 2px;
+  border-style: solid;
   transition:
     border-color 280ms ease,
     box-shadow 280ms ease,
-    filter 280ms ease,
-    transform 200ms ease;
+    filter 280ms ease;
 }
 
-.trait-tile::before {
-  content: "";
+.trait-card-bevel,
+.trait-card-corners {
   pointer-events: none;
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.55;
+}
+
+.trait-card-bevel {
+  opacity: 0.9;
   mix-blend-mode: soft-light;
 }
 
-.trait-tile::after {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 0;
+.trait-card-corners {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
-/* Sealed: concrete hatch + dim */
-.trait-state-sealed {
-  background-color: oklch(0.2 0.01 55);
-  border-color: oklch(0.38 0.01 60 / 55%);
-  filter: saturate(0.75) brightness(0.92);
+.trait-card-band {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-.trait-state-sealed::after {
+
+.trait-card-armed {
+  outline: 1px solid rgba(245, 158, 11, 0.45);
+  outline-offset: 1px;
+}
+
+/* Sealed vs open — whole card, not a chip */
+.trait-state-sealed {
+  filter: saturate(0.7) brightness(0.88);
+}
+.trait-state-sealed .trait-card-bevel {
   background-image: repeating-linear-gradient(
     -48deg,
     transparent,
     transparent 5px,
-    rgba(0, 0, 0, 0.22) 5px,
-    rgba(0, 0, 0, 0.22) 6px
+    rgba(0, 0, 0, 0.28) 5px,
+    rgba(0, 0, 0, 0.28) 6px
   );
-  opacity: 0.55;
+}
+.trait-state-sealed .trait-card-band {
+  opacity: 0.75;
 }
 
-/* Open: lift the finish */
 .trait-state-open {
   filter: none;
-  background-color: oklch(0.26 0.014 55);
-  border-color: oklch(0.55 0.02 70 / 40%);
 }
-.trait-state-open::after {
-  opacity: 0;
+.trait-state-open .trait-card-bevel {
+  opacity: 1;
 }
 
-/* Rarity finishes — texture + metal cue (not category rainbow) */
-.trait-rarity-common::before {
-  background: linear-gradient(160deg, rgba(120, 113, 108, 0.2), transparent 60%);
+/* —— Common: flat ash plate —— */
+.trait-rarity-common {
+  border-color: oklch(0.45 0.01 60 / 55%);
+  background:
+    linear-gradient(180deg, oklch(0.24 0.01 55), oklch(0.2 0.01 55));
+}
+.trait-rarity-common .trait-card-band {
+  background: oklch(0.28 0.01 55);
+  color: oklch(0.7 0.02 70);
 }
 .trait-rarity-common.trait-state-open {
-  border-color: oklch(0.5 0.01 60 / 45%);
+  border-color: oklch(0.55 0.01 60 / 50%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.trait-rarity-uncommon::before {
+/* —— Uncommon: steel plate —— */
+.trait-rarity-uncommon {
+  border-color: oklch(0.72 0.02 260 / 45%);
   background:
-    linear-gradient(135deg, rgba(212, 212, 216, 0.22), transparent 45%),
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 3px,
-      rgba(255, 255, 255, 0.03) 3px,
-      rgba(255, 255, 255, 0.03) 4px
-    );
+    linear-gradient(145deg, oklch(0.3 0.01 260), oklch(0.22 0.01 55) 55%, oklch(0.2 0.01 55));
+}
+.trait-rarity-uncommon .trait-card-band {
+  background: linear-gradient(90deg, oklch(0.38 0.02 260), oklch(0.28 0.01 55));
+  color: oklch(0.88 0.01 260);
+}
+.trait-rarity-uncommon .trait-card-corners {
+  box-shadow:
+    inset 0 0 0 1px rgba(228, 228, 231, 0.12),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.25);
 }
 .trait-rarity-uncommon.trait-state-open {
-  border-color: oklch(0.72 0.01 260 / 40%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: oklch(0.78 0.02 260 / 55%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 16px rgba(161, 161, 170, 0.08);
 }
 
-.trait-rarity-rare::before {
+/* —— Rare: cyan dossier —— */
+.trait-rarity-rare {
+  border-color: oklch(0.68 0.12 230 / 55%);
   background:
-    linear-gradient(120deg, rgba(56, 189, 248, 0.2), transparent 40%, rgba(14, 165, 233, 0.12)),
+    linear-gradient(160deg, oklch(0.28 0.04 230), oklch(0.2 0.015 55) 48%, oklch(0.19 0.01 55));
+}
+.trait-rarity-rare .trait-card-band {
+  background: linear-gradient(90deg, oklch(0.42 0.1 230), oklch(0.26 0.03 230));
+  color: oklch(0.92 0.05 220);
+}
+.trait-rarity-rare .trait-card-bevel {
+  background:
     repeating-linear-gradient(
-      -20deg,
+      -18deg,
       transparent,
-      transparent 8px,
-      rgba(125, 211, 252, 0.06) 8px,
-      rgba(125, 211, 252, 0.06) 9px
+      transparent 7px,
+      rgba(125, 211, 252, 0.07) 7px,
+      rgba(125, 211, 252, 0.07) 8px
     );
 }
 .trait-rarity-rare.trait-state-open {
-  border-color: oklch(0.7 0.12 230 / 50%);
+  border-color: oklch(0.75 0.13 230 / 65%);
   box-shadow:
-    inset 0 1px 0 rgba(125, 211, 252, 0.15),
-    0 0 20px rgba(14, 165, 233, 0.08);
+    inset 0 1px 0 rgba(125, 211, 252, 0.2),
+    0 0 22px rgba(14, 165, 233, 0.12);
 }
 
-.trait-rarity-epic::before {
+/* —— Epic: hazard / amber cut —— */
+.trait-rarity-epic {
+  border-color: oklch(0.7 0.15 55 / 60%);
   background:
-    linear-gradient(145deg, rgba(251, 146, 60, 0.22), transparent 42%, rgba(234, 88, 12, 0.14)),
-    radial-gradient(ellipse at 80% 20%, rgba(253, 186, 116, 0.18), transparent 50%);
+    linear-gradient(150deg, oklch(0.3 0.06 55), oklch(0.21 0.02 55) 50%, oklch(0.18 0.015 55));
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+.trait-rarity-epic .trait-card-band {
+  background: linear-gradient(
+    90deg,
+    oklch(0.55 0.14 55),
+    oklch(0.35 0.08 55) 40%,
+    oklch(0.28 0.04 55)
+  );
+  color: oklch(0.96 0.04 85);
+}
+.trait-rarity-epic .trait-card-bevel {
+  background:
+    radial-gradient(ellipse at 90% 10%, rgba(253, 186, 116, 0.22), transparent 45%),
+    linear-gradient(145deg, rgba(251, 146, 60, 0.12), transparent 50%);
 }
 .trait-rarity-epic.trait-state-open {
-  border-color: oklch(0.72 0.14 55 / 55%);
+  border-color: oklch(0.78 0.15 55 / 70%);
   box-shadow:
-    inset 0 1px 0 rgba(253, 186, 116, 0.18),
-    0 0 22px rgba(234, 88, 12, 0.1);
+    inset 0 1px 0 rgba(253, 186, 116, 0.25),
+    0 0 24px rgba(234, 88, 12, 0.14);
 }
 
-.trait-rarity-legendary::before {
+/* —— Legendary: gold foil print —— */
+.trait-rarity-legendary {
+  border-color: oklch(0.82 0.14 85 / 65%);
+  background:
+    linear-gradient(165deg, oklch(0.34 0.07 85), oklch(0.22 0.03 70) 42%, oklch(0.19 0.02 55));
+}
+.trait-rarity-legendary .trait-card-band {
+  background: linear-gradient(
+    90deg,
+    oklch(0.72 0.14 85),
+    oklch(0.5 0.1 75) 35%,
+    oklch(0.32 0.05 70)
+  );
+  color: oklch(0.18 0.03 70);
+  text-shadow: 0 1px 0 rgba(253, 224, 71, 0.25);
+}
+.trait-rarity-legendary .trait-card-bevel {
   background:
     linear-gradient(
       125deg,
       rgba(252, 211, 77, 0.28),
       transparent 35%,
-      rgba(245, 158, 11, 0.16) 70%,
-      rgba(253, 224, 71, 0.12)
+      rgba(245, 158, 11, 0.14) 70%,
+      rgba(253, 224, 71, 0.1)
     ),
     repeating-linear-gradient(
       35deg,
       transparent,
-      transparent 10px,
-      rgba(253, 224, 71, 0.07) 10px,
-      rgba(253, 224, 71, 0.07) 11px
+      transparent 9px,
+      rgba(253, 224, 71, 0.08) 9px,
+      rgba(253, 224, 71, 0.08) 10px
     );
+  background-size: 200% 200%;
   animation: trait-foil-shift 5.5s linear infinite;
 }
-.trait-rarity-legendary.trait-state-open {
-  border-color: oklch(0.82 0.14 85 / 60%);
+.trait-rarity-legendary .trait-card-corners {
   box-shadow:
-    inset 0 1px 0 rgba(253, 224, 71, 0.28),
-    0 0 26px rgba(245, 158, 11, 0.14);
+    inset 0 0 0 1px rgba(253, 224, 71, 0.28),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.35);
+}
+.trait-rarity-legendary.trait-state-open {
+  border-color: oklch(0.88 0.15 85 / 75%);
+  box-shadow:
+    inset 0 1px 0 rgba(253, 224, 71, 0.35),
+    0 0 28px rgba(245, 158, 11, 0.18);
 }
 
-.trait-rarity-mythic::before {
+/* —— Mythic: crimson protocol —— */
+.trait-rarity-mythic {
+  border-color: oklch(0.65 0.2 25 / 70%);
+  background:
+    linear-gradient(155deg, oklch(0.32 0.08 25), oklch(0.2 0.03 30) 45%, oklch(0.17 0.02 55));
+}
+.trait-rarity-mythic .trait-card-band {
+  background: linear-gradient(
+    90deg,
+    oklch(0.55 0.2 25),
+    oklch(0.38 0.12 30) 40%,
+    oklch(0.28 0.05 40)
+  );
+  color: oklch(0.96 0.02 30);
+}
+.trait-rarity-mythic .trait-card-bevel {
   background:
     linear-gradient(
       150deg,
-      rgba(248, 113, 113, 0.26),
+      rgba(248, 113, 113, 0.28),
       transparent 38%,
-      rgba(239, 68, 68, 0.14) 65%,
-      rgba(251, 146, 60, 0.16)
+      rgba(239, 68, 68, 0.12) 65%,
+      rgba(251, 146, 60, 0.14)
     ),
-    radial-gradient(circle at 20% 80%, rgba(252, 165, 165, 0.2), transparent 45%);
+    radial-gradient(circle at 15% 85%, rgba(252, 165, 165, 0.2), transparent 42%);
+  background-size: 200% 200%;
   animation: trait-foil-shift 4.2s linear infinite;
 }
-.trait-rarity-mythic.trait-state-open {
-  border-color: oklch(0.68 0.18 25 / 58%);
+.trait-rarity-mythic .trait-card-corners {
   box-shadow:
-    inset 0 1px 0 rgba(252, 165, 165, 0.22),
-    0 0 28px rgba(239, 68, 68, 0.12);
+    inset 0 0 0 1px rgba(252, 165, 165, 0.22),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.4);
+}
+.trait-rarity-mythic.trait-state-open {
+  border-color: oklch(0.72 0.2 25 / 75%);
+  box-shadow:
+    inset 0 1px 0 rgba(252, 165, 165, 0.28),
+    0 0 30px rgba(239, 68, 68, 0.16);
 }
 
 @keyframes trait-foil-shift {
@@ -562,9 +2078,120 @@
   }
 }
 
-.trait-rarity-legendary::before,
-.trait-rarity-mythic::before {
-  background-size: 200% 200%;
+/* ——— Typography FX: glitch / neon / typing cursor ——— */
+
+@keyframes text-glitch-skew {
+  0%,
+  88%,
+  100% {
+    transform: none;
+    filter: none;
+  }
+  89% {
+    transform: translate(-2px, 1px) skewX(-8deg);
+    filter: hue-rotate(20deg);
+  }
+  91% {
+    transform: translate(2px, -1px) skewX(6deg);
+  }
+  93% {
+    transform: translate(-1px, 0) skewX(-3deg);
+  }
+  95% {
+    transform: none;
+  }
+}
+
+@keyframes text-glitch-slice {
+  0%,
+  86%,
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+  }
+  88% {
+    clip-path: inset(12% 0 55% 0);
+    transform: translateX(3px);
+  }
+  90% {
+    clip-path: inset(48% 0 18% 0);
+    transform: translateX(-4px);
+  }
+  92% {
+    clip-path: inset(72% 0 4% 0);
+    transform: translateX(2px);
+  }
+}
+
+.text-glitch {
+  position: relative;
+  display: inline-block;
+  animation: text-glitch-skew 4.8s steps(2, end) infinite;
+}
+
+.text-glitch::before,
+.text-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.text-glitch::before {
+  color: #67e8f9;
+  text-shadow: -1px 0 #f472b6;
+  animation: text-glitch-slice 4.8s infinite linear;
+  opacity: 0.7;
+  mix-blend-mode: screen;
+}
+
+.text-glitch::after {
+  color: #a3e635;
+  text-shadow: 1px 0 #67e8f9;
+  animation: text-glitch-slice 4.8s infinite linear reverse;
+  animation-delay: 0.08s;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+
+.text-neon,
+.text-neon-pink,
+.text-neon-cyan,
+.text-neon-lime {
+  font-weight: 600;
+}
+
+.text-neon-pink {
+  color: #fda4af;
+  text-shadow:
+    0 0 6px rgba(244, 114, 182, 0.85),
+    0 0 18px rgba(236, 72, 153, 0.45),
+    0 0 36px rgba(219, 39, 119, 0.25);
+}
+
+.text-neon-cyan {
+  color: #a5f3fc;
+  text-shadow:
+    0 0 6px rgba(34, 211, 238, 0.85),
+    0 0 18px rgba(6, 182, 212, 0.45),
+    0 0 36px rgba(8, 145, 178, 0.25);
+}
+
+.text-neon-lime {
+  color: #d9f99d;
+  text-shadow:
+    0 0 6px rgba(163, 230, 53, 0.85),
+    0 0 18px rgba(132, 204, 22, 0.4),
+    0 0 36px rgba(101, 163, 13, 0.22);
+}
+
+.text-neon {
+  color: #fce7f3;
+  text-shadow:
+    0 0 4px rgba(251, 113, 133, 0.7),
+    0 0 14px rgba(56, 189, 248, 0.35),
+    0 0 28px rgba(163, 230, 53, 0.2);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -575,8 +2202,29 @@
   .bunker-atmosphere::before,
   .bunker-scan::after,
   .finale-stat-card,
+  .finale-stamp,
+  .exile-stamp-mark,
+  .finale-gauge-fill,
+  .finale-verdict-glow,
+  .finale-chip,
+  .cyber-radial-fill,
   .trait-rarity-legendary::before,
-  .trait-rarity-mythic::before {
+  .trait-rarity-mythic::before,
+  .text-glitch,
+  .text-glitch::before,
+  .text-glitch::after {
     animation: none !important;
+  }
+
+  .text-glitch::before,
+  .text-glitch::after {
+    content: none;
+  }
+
+  .text-neon-pink,
+  .text-neon-cyan,
+  .text-neon-lime,
+  .text-neon {
+    text-shadow: none;
   }
 }

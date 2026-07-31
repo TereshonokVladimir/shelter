@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
+import { TypingText } from '@/components/typography/typing-text'
 
 interface PhaseShellProps {
   title: string
@@ -9,9 +10,14 @@ interface PhaseShellProps {
   children: ReactNode
   footer?: ReactNode
   className?: string
+  /** Wider content for dense grids (voting, results) */
+  wide?: boolean
 }
 
-/** Shared room-phase frame: clear title, “what to do now”, sticky primary actions. */
+/**
+ * One bunker frame for the active phase.
+ * The whole panel scrolls together — header and footer included.
+ */
 export function PhaseShell({
   title,
   subtitle,
@@ -20,44 +26,57 @@ export function PhaseShell({
   children,
   footer,
   className,
+  wide = false,
 }: PhaseShellProps) {
   return (
-    <div className={cn('bunker-phase-enter flex h-full min-h-0 flex-col gap-4', className)}>
-      <header className="relative flex shrink-0 flex-wrap items-start justify-between gap-3 overflow-hidden rounded-xl border border-amber-900/30 bg-stone-950/40 px-4 py-3 sm:px-5">
-        <span className="bunker-corner bunker-corner-tl" aria-hidden />
-        <span className="bunker-corner bunker-corner-tr" aria-hidden />
-        <span className="bunker-corner bunker-corner-bl" aria-hidden />
-        <span className="bunker-corner bunker-corner-br" aria-hidden />
-        <div className="relative z-[1] min-w-0 max-w-2xl">
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.28em] text-amber-500/80">
-            Операция · бункер
-          </p>
-          <h2 className="font-[family-name:var(--font-display)] text-2xl tracking-wide text-stone-50 sm:text-3xl">
-            {title}
-          </h2>
-          {subtitle ? (
-            <p className="mt-1.5 text-sm leading-relaxed text-stone-400">{subtitle}</p>
-          ) : null}
+    <div className={cn('bunker-phase-enter flex h-full min-h-0 w-full flex-col', className)}>
+      <article className="bunker-panel scrollbar-thin relative flex h-full min-h-0 flex-1 flex-col overscroll-contain">
+        <div className="bunker-hazard-stripe h-1.5 shrink-0" aria-hidden />
+
+        <header className="shrink-0 border-b border-amber-900/30 px-3 py-2.5 sm:px-4 sm:py-3">
+          <span className="bunker-corner bunker-corner-tl scale-75" aria-hidden />
+          <span className="bunker-corner bunker-corner-tr scale-75" aria-hidden />
+          <div className="relative z-[1] flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="bunker-label text-neon-cyan mb-1">Операция · бункер</p>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <h2
+                  className="text-glitch font-[family-name:var(--font-display)] text-xl tracking-wide text-stone-50 sm:text-2xl"
+                  data-text={title}
+                >
+                  {title}
+                </h2>
+                {subtitle ? (
+                  <p className="line-clamp-1 text-xs text-stone-400 sm:text-sm">{subtitle}</p>
+                ) : null}
+              </div>
+              {step ? (
+                <p className="mt-1.5 line-clamp-2 border-l-2 border-cyan-400/40 pl-2.5 text-sm font-medium text-amber-100/90">
+                  <TypingText text={step} className="font-sans text-sm font-medium text-amber-100/90" speed={16} delay={80} />
+                </p>
+              ) : null}
+            </div>
+            {badge ? <div className="shrink-0">{badge}</div> : null}
+          </div>
+        </header>
+
+        <div
+          className={cn(
+            'relative z-[1] w-full px-3 pt-3 sm:px-4 sm:pt-4',
+            footer ? 'pb-6 sm:pb-8' : 'pb-3 sm:pb-4',
+            wide ? 'flex flex-col xl:px-5' : 'mx-auto max-w-4xl',
+          )}
+        >
+          {children}
         </div>
-        {badge ? <div className="relative z-[1] shrink-0">{badge}</div> : null}
-      </header>
 
-      {step ? (
-        <div className="bunker-hazard-stripe relative shrink-0 overflow-hidden rounded-xl border border-amber-600/40 px-4 py-3 shadow-[inset_0_1px_0_rgba(251,191,36,0.12)]">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-200/80">
-            Задание фазы
-          </p>
-          <p className="mt-1 text-sm font-medium text-amber-50">{step}</p>
-        </div>
-      ) : null}
-
-      <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto">{children}</div>
-
-      {footer ? (
-        <footer className="shrink-0 border-t border-amber-900/30 bg-stone-950/85 pt-4 backdrop-blur-sm">
-          {footer}
-        </footer>
-      ) : null}
+        {footer ? (
+          <footer className="mt-auto shrink-0 border-t border-amber-900/35">
+            <div className="bunker-hazard-stripe-soft h-1 opacity-80" aria-hidden />
+            <div className="px-3 py-2.5 sm:px-4 sm:py-3">{footer}</div>
+          </footer>
+        ) : null}
+      </article>
     </div>
   )
 }

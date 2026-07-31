@@ -5,13 +5,10 @@ import { cn } from '@/lib/utils'
 
 interface GameTimerProps {
   phaseEndsAt: string | null | undefined
-  /** Short phase name, e.g. «Голосование» */
   label?: string
-  /** Who/what the timer is for — shown as the main title */
   subject?: string | null
   expiredHint?: string
   paused?: boolean
-  /** Emphasize when it's the current user's turn */
   highlight?: boolean
   className?: string
 }
@@ -20,7 +17,6 @@ export function GameTimer({
   phaseEndsAt,
   label = 'Таймер',
   subject,
-  expiredHint = 'Время вышло — фаза переключится автоматически.',
   paused = false,
   highlight = false,
   className,
@@ -53,28 +49,20 @@ export function GameTimer({
           {subject}
         </p>
       ) : null}
-      {paused ? (
-        <>
-          <p className="mt-1 font-mono text-3xl tabular-nums text-stone-300">Пауза</p>
-          <p className="mt-1 text-xs text-stone-400">Таймеры остановлены у всех</p>
-        </>
-      ) : (
-        <>
-          <p
-            className={cn(
-              'mt-1 flex h-9 items-center font-mono text-3xl leading-none tabular-nums',
-              isExpired ? 'text-red-300' : urgent ? 'text-red-200' : 'text-amber-100',
-            )}
-          >
-            {timeLabel}
-          </p>
-          {isExpired ? (
-            <p className="mt-2 text-xs leading-snug text-stone-300">{expiredHint}</p>
-          ) : urgent ? (
-            <p className="mt-2 text-xs text-red-200/80">Время на исходе</p>
-          ) : null}
-        </>
-      )}
+      <p
+        className={cn(
+          'mt-1 font-mono text-3xl tabular-nums leading-none',
+          paused
+            ? 'text-stone-300'
+            : isExpired
+              ? 'text-red-300'
+              : urgent
+                ? 'text-neon-pink'
+                : 'text-amber-100',
+        )}
+      >
+        {paused ? 'ПАУЗА' : timeLabel}
+      </p>
     </div>
   )
 }

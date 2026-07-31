@@ -1,3 +1,14 @@
+import {
+  Briefcase,
+  Dna,
+  HeartPulse,
+  Palette,
+  Ghost,
+  Backpack,
+  Smile,
+  ScrollText,
+  type LucideIcon,
+} from 'lucide-react'
 import { CATEGORY_LABELS } from '@/lib/constants'
 import type { CharacteristicCategory } from '@/types/common'
 import { cn } from '@/lib/utils'
@@ -6,14 +17,28 @@ export function categoryLabel(category: string) {
   return CATEGORY_LABELS[category as CharacteristicCategory] ?? category
 }
 
-/** Neutral chip — category is label only; rarity carries the visual weight. */
+export const CATEGORY_ICON: Record<CharacteristicCategory, LucideIcon> = {
+  profession: Briefcase,
+  biology: Dna,
+  health: HeartPulse,
+  hobby: Palette,
+  phobia: Ghost,
+  baggage: Backpack,
+  personality: Smile,
+  fact: ScrollText,
+}
+
+export function categoryIcon(category: string): LucideIcon {
+  return CATEGORY_ICON[category as CharacteristicCategory] ?? ScrollText
+}
+
+/** @deprecated Prefer icon + tooltip; kept for admin/compat. */
 export function CategoryChip({
   category,
   className,
 }: {
   category: string
   className?: string
-  /** @deprecated kept for call-site compat; ignored */
   revealed?: boolean
 }) {
   return (

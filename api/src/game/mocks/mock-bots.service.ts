@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { ALWAYS_HIDDEN_COUNT, revealQuotaForRound } from '../game.rules'
+import { ALWAYS_HIDDEN_COUNT, QUOTA_REVEAL_SOURCE, revealQuotaForRound } from '../game.rules'
 import { GameException } from '../game.types'
 import {
   isBotPlayerName,
@@ -71,6 +71,7 @@ export class MockBotsService {
             name,
             role: 'player',
             status: 'active',
+            isReady: true,
             lastSeenAt: new Date(),
           },
         })
@@ -111,15 +112,25 @@ export class MockBotsService {
 
       let acted = 0
 
-      if (room.status === 'reveal') {
-        const quota = revealQuotaForRound(room.currentRound)
+      if (
+        room.status === 'reveal' ||
+        room.status === 'presentation' ||
+        room.status === 'discussion'
+      ) {
+        const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+        const speakers =
+          room.status === 'reveal'
+            ? botPlayers
+            : botPlayers.filter((b) => b.id === room.presentationPlayerId)
+
         if (quota > 0) {
-          for (const bot of botPlayers) {
+          for (const bot of speakers) {
             let already = await tx.playerCharacteristic.count({
               where: {
                 playerId: bot.id,
                 isRevealed: true,
                 revealedRound: room.currentRound,
+                revealSource: QUOTA_REVEAL_SOURCE,
               },
             })
 
@@ -140,6 +151,7 @@ export class MockBotsService {
                   isRevealed: true,
                   revealedRound: room.currentRound,
                   revealedAt: new Date(),
+                  revealSource: QUOTA_REVEAL_SOURCE,
                 },
               })
               await tx.gameEvent.create({

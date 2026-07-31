@@ -111,6 +111,8 @@ model Room {
   currentRound           Int       @default(0) @map("current_round")
   maxPlayers             Int       @map("max_players")
   shelterCapacity        Int?      @map("shelter_capacity")
+  /// Voting rounds planned at start (= playerCount − capacity); drives reveal quota spread
+  plannedRounds          Int?      @map("planned_rounds")
   packageId              String?   @map("package_id")
   disasterId             String?   @map("disaster_id")
   bunkerId               String?   @map("bunker_id")
@@ -119,6 +121,10 @@ model Room {
   presentationDurationSec Int      @default(60) @map("presentation_duration_sec")
   votingDurationSec      Int       @default(60) @map("voting_duration_sec")
   revealDurationSec      Int       @default(90) @map("reveal_duration_sec")
+  /// classic | slow | sprint — per-round reveal quotas
+  revealStrategy         String    @default("classic") @map("reveal_strategy")
+  /// Quiet time after deal before first speaker (0 = skip)
+  prepDurationSec        Int       @default(60) @map("prep_duration_sec")
   presentationPlayerId   String?   @map("presentation_player_id")
   presentationOrderJson  String    @default("[]") @map("presentation_order_json")
   phaseEndsAt            DateTime? @map("phase_ends_at")
@@ -148,6 +154,8 @@ model Player {
   name         String
   role         String
   status       String    @default("active")
+  /// Lobby ready-check; new joiners start unready, others keep their seal
+  isReady      Boolean   @default(false) @map("is_ready")
   joinedAt     DateTime  @default(now()) @map("joined_at")
   lastSeenAt   DateTime? @map("last_seen_at")
   eliminatedAt DateTime? @map("eliminated_at")
@@ -174,6 +182,8 @@ model PlayerCharacteristic {
   isRevealed       Boolean   @default(false) @map("is_revealed")
   revealedRound    Int?      @map("revealed_round")
   revealedAt       DateTime? @map("revealed_at")
+  /// player | action | system — only `player` counts toward round reveal quota
+  revealSource     String    @default("player") @map("reveal_source")
 
   room           Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
   player         Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)

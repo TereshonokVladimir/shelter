@@ -4,14 +4,14 @@ import { useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { GameTimer } from '@/components/game-timer/game-timer'
-import { PlayerCard } from '@/components/player-card/player-card'
+import { NotebookProfile } from '@/features/game/components/notebook-profile'
 import { PhaseShell } from '@/features/room/components/phase-shell'
 import {
   beginPresentationRequest,
   nextRevealRoundRequest,
   finishGameRequest,
 } from '@/features/room/actions/api-commands'
-import { CHARACTERISTIC_CATEGORIES } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 import type { Player, PlayerCharacteristicView, Room } from '@/lib/api/types'
 
 interface VoteResultViewProps {
@@ -34,13 +34,27 @@ export function VoteResultView({
   const isPaused = Boolean(room.is_paused)
   const summary = room.last_vote_summary as {
     tie?: boolean
-    eliminated_player_id?: string
+    eliminated_player_id?: string | null
+    eliminated_player_ids?: string[]
+    seats_needed?: number
     tallies?: Array<{ player_id: string; votes: number }>
     candidate_ids?: string[]
   }
 
   const isTie = Boolean(summary?.tie)
-  const eliminated = players.find((p) => p.id === summary?.eliminated_player_id)
+  const eliminatedIds =
+    summary?.eliminated_player_ids?.length
+      ? summary.eliminated_player_ids
+      : summary?.eliminated_player_id
+        ? [summary.eliminated_player_id]
+        : []
+  const eliminated = eliminatedIds
+    .map((id) => players.find((p) => p.id === id))
+    .filter((p): p is Player => Boolean(p))
+  const eliminatedSet = new Set(eliminatedIds)
+  const seatsNeeded = summary?.seats_needed ?? room.eliminations_this_round ?? 1
+  const tallies = [...(summary?.tallies ?? [])].sort((a, b) => b.votes - a.votes)
+  const maxVotes = tallies[0]?.votes ?? 0
 
   function nextRound() {
     startTransition(async () => {
@@ -68,12 +82,15 @@ export function VoteResultView({
 
   return (
     <PhaseShell
+      wide
       title="Результат голосования"
       subtitle={`Раунд ${room.current_round}`}
       step={
         isTie
-          ? 'Ничья — дальше речи всех игроков, затем переголосование.'
-          : 'Дальше новый раунд раскроется автоматически (или вручную ведущим).'
+          ? seatsNeeded > 1
+            ? `Ничья за ${seatsNeeded} мест — речи, затем переголосование.`
+            : 'Ничья — речи кандидатов, затем переголосование.'
+          : 'Дальше новый раунд (авто или вручную).'
       }
       badge={
         <GameTimer
@@ -115,51 +132,69 @@ export function VoteResultView({
         )
       }
     >
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
+      <div className="flex w-full flex-col gap-6">
         {isTie ? (
-          <div className="rounded-xl border border-amber-700/45 bg-amber-950/35 p-4">
+          <div className="rounded-lg border border-amber-700/45 bg-amber-950/35 p-3">
             <p className="font-medium text-amber-100">Ничья</p>
             <p className="mt-1 text-sm text-stone-300">
-              Перед переголосованием у каждого будет речь. Кандидаты с равным максимумом голосов.
+              Нужно исключить ещё {seatsNeeded}. Кандидаты выступят перед переголосованием.
             </p>
-          </div>
-        ) : eliminated ? (
-          <div className="rounded-xl border border-rose-800/45 bg-rose-950/30 p-4">
-            <p className="mb-3 font-medium text-rose-100">Исключён: {eliminated.name}</p>
-            <PlayerCard
-              player={eliminated}
-              compact
-              characteristics={characteristics
-                .filter((c) => c.player_id === eliminated.id)
-                .sort(
-                  (a, b) =>
-                    CHARACTERISTIC_CATEGORIES.indexOf(a.category) -
-                    CHARACTERISTIC_CATEGORIES.indexOf(b.category),
-                )}
-              showHiddenAsOwner
-            />
           </div>
         ) : null}
 
-        <div className="rounded-xl border border-border/50 bg-card/70 p-4">
-          <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Голоса
-          </h3>
-          <ul className="flex flex-col gap-2">
-            {(summary?.tallies ?? []).map((tally) => {
-              const player = players.find((p) => p.id === tally.player_id)
-              return (
-                <li
-                  key={tally.player_id}
-                  className="flex items-center justify-between rounded-lg bg-background/40 px-3 py-2 text-sm"
-                >
-                  <span className="text-stone-200">{player?.name ?? tally.player_id}</span>
-                  <span className="font-mono tabular-nums text-stone-50">{tally.votes}</span>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+        {eliminated.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {eliminated.map((player) => (
+              <article
+                key={player.id}
+                className="exile-sheet dossier-paper-sheet"
+                aria-label={`Изгнан: ${player.name}`}
+              >
+                <div className="exile-sheet-body">
+                  <NotebookProfile
+                    player={player}
+                    characteristics={characteristics.filter((c) => c.player_id === player.id)}
+                    showHiddenAsOwner
+                  />
+                </div>
+                <div className="exile-stamp" aria-hidden>
+                  <span className="exile-stamp-mark">Изгнан</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : !isTie ? (
+          <p className="dossier-hand text-lg text-stone-400">Никого не исключили.</p>
+        ) : null}
+
+        <aside className="flex w-full flex-col gap-2">
+          <p className="vote-scraps-label">Голоса · обрывки</p>
+          {tallies.length === 0 ? (
+            <p className="text-sm text-stone-500">Пока нет подсчёта.</p>
+          ) : (
+            <ul className="vote-scraps">
+              {tallies.map((tally) => {
+                const player = players.find((p) => p.id === tally.player_id)
+                const isOut = eliminatedSet.has(tally.player_id)
+                const isTop = tally.votes === maxVotes && maxVotes > 0
+                return (
+                  <li
+                    key={tally.player_id}
+                    className={cn('vote-scrap', isTop && 'vote-scrap--top')}
+                  >
+                    <span className="vote-scrap-name">
+                      {player?.name ?? tally.player_id}
+                      {isOut ? ' · изгнан' : ''}
+                    </span>
+                    <span className="vote-scrap-votes tabular-nums">
+                      {tally.votes}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </aside>
       </div>
     </PhaseShell>
   )

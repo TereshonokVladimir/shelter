@@ -24,10 +24,17 @@ export function useRoomChannel({ roomCode, enabled = true, onUpdate }: UseRoomCh
       await ensureBrowserAuth()
       if (cancelled) return
 
-      socket = io(API_URL, {
+      const next = io(API_URL, {
         auth: { token: getBrowserToken() },
         transports: ['websocket', 'polling'],
       })
+
+      // Strict Mode can cancel between await and assignment — don't orphan the socket.
+      if (cancelled) {
+        next.disconnect()
+        return
+      }
+      socket = next
 
       socket.on('connect', () => {
         setIsConnected(true)

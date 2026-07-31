@@ -16,6 +16,7 @@ const game_rules_1 = require("./game.rules");
 const game_types_1 = require("./game.types");
 const mock_bots_config_1 = require("./mocks/mock-bots.config");
 const game_rarity_1 = require("./game.rarity");
+const game_synergy_1 = require("./game.synergy");
 let GameService = class GameService {
     prisma;
     constructor(prisma) {
@@ -72,6 +73,8 @@ let GameService = class GameService {
         const presentationDurationSec = input.presentationDurationSec ?? game_rules_1.DEFAULT_PRESENTATION_SEC;
         const votingDurationSec = input.votingDurationSec ?? game_rules_1.DEFAULT_VOTING_SEC;
         const revealDurationSec = input.revealDurationSec ?? game_rules_1.DEFAULT_REVEAL_SEC;
+        const prepDurationSec = input.prepDurationSec ?? game_rules_1.DEFAULT_PREP_SEC;
+        const revealStrategy = (0, game_rules_1.normalizeRevealStrategy)(input.revealStrategy ?? game_rules_1.DEFAULT_REVEAL_STRATEGY);
         if (presentationDurationSec < game_rules_1.MIN_PRESENTATION_SEC ||
             presentationDurationSec > game_rules_1.MAX_PRESENTATION_SEC) {
             throw new game_types_1.GameException('INVALID_PRESENTATION_DURATION');
@@ -81,6 +84,14 @@ let GameService = class GameService {
         }
         if (revealDurationSec < game_rules_1.MIN_REVEAL_SEC || revealDurationSec > game_rules_1.MAX_REVEAL_SEC) {
             throw new game_types_1.GameException('INVALID_REVEAL_DURATION');
+        }
+        if (prepDurationSec < game_rules_1.MIN_PREP_SEC || prepDurationSec > game_rules_1.MAX_PREP_SEC) {
+            throw new game_types_1.GameException('INVALID_PREP_DURATION');
+        }
+        if (input.revealStrategy != null &&
+            input.revealStrategy !== '' &&
+            (0, game_rules_1.normalizeRevealStrategy)(input.revealStrategy) !== input.revealStrategy) {
+            throw new game_types_1.GameException('INVALID_REVEAL_STRATEGY');
         }
         const contentPack = await this.prisma.contentPackage.findFirst({
             where: { id: input.packageId, isActive: true },
@@ -98,6 +109,8 @@ let GameService = class GameService {
                             presentationDurationSec,
                             votingDurationSec,
                             revealDurationSec,
+                            prepDurationSec,
+                            revealStrategy,
                             packageId: contentPack.id,
                             discussionDurationSec: presentationDurationSec,
                         },
@@ -123,6 +136,8 @@ let GameService = class GameService {
                             payload: JSON.stringify({
                                 host_player_id: player.id,
                                 package_id: contentPack.id,
+                                reveal_strategy: revealStrategy,
+                                prep_duration_sec: prepDurationSec,
                             }),
                         },
                     });
@@ -130,7 +145,13 @@ let GameService = class GameService {
                 });
                 return result;
             }
-            catch {
+            catch (error) {
+                const code = error && typeof error === 'object' && 'code' in error
+                    ? String(error.code)
+                    : '';
+                if (code === 'P2002')
+                    continue;
+                throw error;
             }
         }
         throw new game_types_1.GameException('ROOM_NOT_FOUND');
@@ -150,11 +171,15 @@ let GameService = class GameService {
                 where: { roomId_userId: { roomId: room.id, userId } },
             });
             if (existing) {
+                const nextName = room.status === 'lobby' ? name : existing.name;
+                if (room.status === 'lobby' && nextName !== existing.name) {
+                    await this.assertUniquePlayerName(tx, room.id, nextName, existing.id);
+                }
                 const player = await tx.player.update({
                     where: { id: existing.id },
                     data: {
                         lastSeenAt: new Date(),
-                        name: room.status === 'lobby' ? name : existing.name,
+                        name: nextName,
                         status: existing.status === 'disconnected' && !existing.eliminatedAt
                             ? 'active'
                             : existing.status,
@@ -169,6 +194,7 @@ let GameService = class GameService {
             });
             if (count >= room.maxPlayers)
                 throw new game_types_1.GameException('ROOM_FULL');
+            await this.assertUniquePlayerName(tx, room.id, name);
             const player = await tx.player.create({
                 data: {
                     roomId: room.id,
@@ -176,6 +202,7 @@ let GameService = class GameService {
                     name,
                     role: 'player',
                     status: 'active',
+                    isReady: false,
                     lastSeenAt: new Date(),
                 },
             });
@@ -187,6 +214,28 @@ let GameService = class GameService {
                 },
             });
             return { room, player, rejoined: false };
+        });
+    }
+    async setPlayerReady(userId, roomId, ready) {
+        return this.prisma.$transaction(async (tx) => {
+            const room = await tx.room.findUniqueOrThrow({ where: { id: roomId } });
+            if (room.status !== 'lobby')
+                throw new game_types_1.GameException('INVALID_STATUS');
+            const me = await tx.player.findFirst({ where: { roomId, userId } });
+            if (!me || me.status !== 'active')
+                throw new game_types_1.GameException('PLAYER_NOT_ACTIVE');
+            const player = await tx.player.update({
+                where: { id: me.id },
+                data: { isReady: ready, lastSeenAt: new Date() },
+            });
+            await tx.gameEvent.create({
+                data: {
+                    roomId,
+                    type: ready ? 'player_ready' : 'player_unready',
+                    payload: JSON.stringify({ player_id: player.id }),
+                },
+            });
+            return { player };
         });
     }
     async removeLobbyPlayer(userId, roomId, playerId) {
@@ -233,6 +282,8 @@ let GameService = class GameService {
             });
             if (players.length < 4)
                 throw new game_types_1.GameException('NOT_ENOUGH_PLAYERS');
+            if (players.some((p) => !p.isReady))
+                throw new game_types_1.GameException('PLAYERS_NOT_READY');
             const packageId = room.packageId ??
                 (await tx.contentPackage.findFirst({
                     where: { slug: 'classic', isActive: true },
@@ -250,6 +301,7 @@ let GameService = class GameService {
             const disaster = (0, game_types_1.shuffle)(disasters)[0];
             const bunker = (0, game_types_1.shuffle)(bunkers)[0];
             const capacity = (0, game_types_1.calculateShelterCapacity)(players.length);
+            const plannedRounds = (0, game_rules_1.plannedVotingRounds)(players.length, capacity);
             for (const category of game_types_1.CHARACTERISTIC_CATEGORIES) {
                 const pool = await tx.characteristic.findMany({
                     where: { isActive: true, category, packageId },
@@ -286,19 +338,24 @@ let GameService = class GameService {
                     },
                 });
             }
-            const phaseEndsAt = new Date(Date.now() + room.revealDurationSec * 1000);
+            const order = players.map((p) => p.id);
+            const prepSec = room.prepDurationSec ?? 0;
+            const startPresentation = prepSec <= 0;
+            const phaseEndsAt = new Date(Date.now() +
+                (startPresentation ? room.presentationDurationSec : prepSec) * 1000);
             const updated = await tx.room.update({
                 where: { id: roomId },
                 data: {
-                    status: 'reveal',
+                    status: startPresentation ? 'presentation' : 'prep',
                     currentRound: 1,
                     shelterCapacity: capacity,
+                    plannedRounds,
                     packageId,
                     disasterId: disaster.id,
                     bunkerId: bunker.id,
                     phaseEndsAt,
-                    presentationPlayerId: null,
-                    presentationOrderJson: '[]',
+                    presentationPlayerId: startPresentation ? (order[0] ?? null) : null,
+                    presentationOrderJson: startPresentation ? JSON.stringify(order) : '[]',
                     pausedAt: null,
                     pauseRemainingMs: null,
                     votingCandidateIdsJson: '[]',
@@ -315,8 +372,14 @@ let GameService = class GameService {
                         bunker_id: bunker.id,
                         package_id: packageId,
                         shelter_capacity: capacity,
+                        planned_rounds: plannedRounds,
+                        reveal_plan: (0, game_rules_1.distributeRevealQuotas)(plannedRounds, room.revealStrategy),
                         player_count: players.length,
                         phase_ends_at: phaseEndsAt,
+                        presentation_player_id: startPresentation ? (order[0] ?? null) : null,
+                        prep_duration_sec: prepSec,
+                        reveal_strategy: room.revealStrategy,
+                        phase: startPresentation ? 'presentation' : 'prep',
                     }),
                 },
             });
@@ -336,22 +399,39 @@ let GameService = class GameService {
                     playerId: player.id,
                     isRevealed: true,
                     revealedRound: currentRound,
+                    revealSource: game_rules_1.QUOTA_REVEAL_SOURCE,
                 },
             });
-            if (revealed < quota)
-                return false;
+            if (revealed >= quota)
+                continue;
+            const unrevealed = await this.prisma.playerCharacteristic.count({
+                where: { playerId: player.id, isRevealed: false },
+            });
+            if (unrevealed <= game_rules_1.ALWAYS_HIDDEN_COUNT)
+                continue;
+            return false;
         }
         return true;
     }
+    async advanceRevealIfReady(roomId) {
+        const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
+        if (room.status !== 'reveal')
+            return { advanced: false };
+        const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+        const allDone = await this.allActiveMetRevealQuota(roomId, room.currentRound, quota);
+        if (!allDone)
+            return { advanced: false };
+        await this.beginPresentation(roomId);
+        return { advanced: true };
+    }
     async revealCharacteristic(userId, roomId, playerCharacteristicId) {
-        let currentRound = 0;
-        let shouldCheckQuota = false;
-        const result = await this.prisma.$transaction(async (tx) => {
+        return this.prisma.$transaction(async (tx) => {
             const room = await tx.room.findUniqueOrThrow({ where: { id: roomId } });
-            if (room.status !== 'reveal')
+            if (!(0, game_types_1.isPresentationStatus)(room.status) && room.status !== 'reveal') {
                 throw new game_types_1.GameException('INVALID_STATUS');
+            }
             this.assertNotPaused(room);
-            const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound);
+            const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
             if (quota <= 0)
                 throw new game_types_1.GameException('INVALID_STATUS');
             const me = await tx.player.findFirst({
@@ -359,6 +439,9 @@ let GameService = class GameService {
             });
             if (!me)
                 throw new game_types_1.GameException('PLAYER_NOT_ACTIVE');
+            if ((0, game_types_1.isPresentationStatus)(room.status) && room.presentationPlayerId !== me.id) {
+                throw new game_types_1.GameException('NOT_YOUR_TURN');
+            }
             const pc = await tx.playerCharacteristic.findFirst({
                 where: { id: playerCharacteristicId, roomId },
             });
@@ -374,6 +457,7 @@ let GameService = class GameService {
                     playerId: me.id,
                     isRevealed: true,
                     revealedRound: room.currentRound,
+                    revealSource: { in: [game_rules_1.QUOTA_REVEAL_SOURCE, 'system'] },
                 },
             });
             if (already >= quota)
@@ -390,6 +474,7 @@ let GameService = class GameService {
                     isRevealed: true,
                     revealedRound: room.currentRound,
                     revealedAt: new Date(),
+                    revealSource: game_rules_1.QUOTA_REVEAL_SOURCE,
                 },
             });
             await tx.gameEvent.create({
@@ -404,18 +489,8 @@ let GameService = class GameService {
                     }),
                 },
             });
-            currentRound = room.currentRound;
-            shouldCheckQuota = true;
             return { player_characteristic: updated };
         });
-        if (shouldCheckQuota) {
-            const quota = (0, game_rules_1.revealQuotaForRound)(currentRound);
-            const allDone = await this.allActiveMetRevealQuota(roomId, currentRound, quota);
-            if (allDone) {
-                await this.beginPresentation(roomId);
-            }
-        }
-        return result;
     }
     async playActionCard(userId, roomId, input) {
         return this.prisma.$transaction(async (tx) => {
@@ -429,6 +504,9 @@ let GameService = class GameService {
             });
             if (!me)
                 throw new game_types_1.GameException('PLAYER_NOT_ACTIVE');
+            if ((0, game_types_1.isPresentationStatus)(room.status) && room.presentationPlayerId !== me.id) {
+                throw new game_types_1.GameException('NOT_YOUR_TURN');
+            }
             const pac = await tx.playerActionCard.findFirst({
                 where: { id: input.playerActionCardId, roomId },
                 include: { actionCard: true },
@@ -470,28 +548,18 @@ let GameService = class GameService {
                     throw new game_types_1.GameException('ACTION_INVALID');
                 await tx.playerCharacteristic.update({
                     where: { id: mine.id },
-                    data: {
-                        characteristicId: theirs.characteristicId,
-                        isRevealed: theirs.isRevealed,
-                        revealedRound: theirs.revealedRound,
-                        revealedAt: theirs.revealedAt,
-                    },
+                    data: { characteristicId: theirs.characteristicId },
                 });
                 await tx.playerCharacteristic.update({
                     where: { id: theirs.id },
-                    data: {
-                        characteristicId: mine.characteristicId,
-                        isRevealed: mine.isRevealed,
-                        revealedRound: mine.revealedRound,
-                        revealedAt: mine.revealedAt,
-                    },
+                    data: { characteristicId: mine.characteristicId },
                 });
                 summary = {
                     ...summary,
                     category,
                     target_player_id: target.id,
-                    my_new_title: theirs.characteristic.title,
-                    their_new_title: mine.characteristic.title,
+                    my_new_characteristic_id: theirs.characteristicId,
+                    their_new_characteristic_id: mine.characteristicId,
                 };
             }
             else if (effect === 'reroll_characteristic') {
@@ -528,12 +596,13 @@ let GameService = class GameService {
                         isRevealed: false,
                         revealedRound: null,
                         revealedAt: null,
+                        revealSource: game_rules_1.QUOTA_REVEAL_SOURCE,
                     },
                 });
                 summary = {
                     ...summary,
                     category,
-                    new_title: next.title,
+                    new_characteristic_id: next.id,
                 };
             }
             else if (effect === 'force_reveal') {
@@ -550,8 +619,9 @@ let GameService = class GameService {
                     where: { playerId: target.id, isRevealed: false },
                     include: { characteristic: true },
                 }));
-                if (!hidden.length)
+                if (hidden.length <= game_rules_1.ALWAYS_HIDDEN_COUNT) {
                     throw new game_types_1.GameException('ACTION_INVALID');
+                }
                 const pick = hidden[0];
                 await tx.playerCharacteristic.update({
                     where: { id: pick.id },
@@ -559,13 +629,15 @@ let GameService = class GameService {
                         isRevealed: true,
                         revealedRound: room.currentRound,
                         revealedAt: new Date(),
+                        revealSource: 'action',
                     },
                 });
                 summary = {
                     ...summary,
                     target_player_id: target.id,
                     category: pick.category,
-                    revealed_title: pick.characteristic.title,
+                    player_characteristic_id: pick.id,
+                    quota_exempt: true,
                 };
             }
             else {
@@ -594,6 +666,70 @@ let GameService = class GameService {
             return { ok: true, summary };
         });
     }
+    async autofillMissingReveals(roomId, playerIds) {
+        const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
+        if (room.status !== 'reveal' &&
+            !(0, game_types_1.isPresentationStatus)(room.status)) {
+            return;
+        }
+        const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+        if (quota <= 0)
+            return;
+        const active = await this.prisma.player.findMany({
+            where: {
+                roomId,
+                status: 'active',
+                ...(playerIds?.length ? { id: { in: playerIds } } : {}),
+            },
+        });
+        for (const player of active) {
+            const already = await this.prisma.playerCharacteristic.count({
+                where: {
+                    playerId: player.id,
+                    isRevealed: true,
+                    revealedRound: room.currentRound,
+                    revealSource: game_rules_1.QUOTA_REVEAL_SOURCE,
+                },
+            });
+            const systemAlready = await this.prisma.playerCharacteristic.count({
+                where: {
+                    playerId: player.id,
+                    isRevealed: true,
+                    revealedRound: room.currentRound,
+                    revealSource: 'system',
+                },
+            });
+            let need = quota - already - systemAlready;
+            if (need <= 0)
+                continue;
+            const hidden = (0, game_types_1.shuffle)(await this.prisma.playerCharacteristic.findMany({
+                where: { playerId: player.id, isRevealed: false },
+            }));
+            const maxCanReveal = Math.max(0, hidden.length - game_rules_1.ALWAYS_HIDDEN_COUNT);
+            need = Math.min(need, maxCanReveal);
+            if (need <= 0)
+                continue;
+            const picks = hidden.slice(0, need);
+            for (const pick of picks) {
+                await this.prisma.playerCharacteristic.update({
+                    where: { id: pick.id },
+                    data: {
+                        isRevealed: true,
+                        revealedRound: room.currentRound,
+                        revealedAt: new Date(),
+                        revealSource: 'system',
+                    },
+                });
+            }
+            if (picks.length > 0) {
+                await this.addEvent(roomId, 'reveals_autofilled', {
+                    player_id: player.id,
+                    count: picks.length,
+                    player_characteristic_ids: picks.map((p) => p.id),
+                }, room.currentRound);
+            }
+        }
+    }
     async beginPresentation(roomId, opts) {
         if (opts?.hostUserId) {
             await this.requireHost(roomId, opts.hostUserId);
@@ -601,13 +737,23 @@ let GameService = class GameService {
         const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
         this.assertNotPaused(room);
         if ((0, game_types_1.isPresentationStatus)(room.status)) {
-            return { room, already: true };
+            const existingOrder = this.parseJson(room.presentationOrderJson, []);
+            if (room.presentationPlayerId && existingOrder.length > 0) {
+                return { room, already: true };
+            }
         }
-        const allowed = room.status === 'reveal' ||
-            (room.status === 'vote_result' &&
-                this.parseJson(room.lastVoteSummaryJson, {}).tie === true);
+        const tie = room.status === 'vote_result' &&
+            this.parseJson(room.lastVoteSummaryJson, {}).tie === true;
+        const allowed = room.status === 'prep' ||
+            room.status === 'reveal' ||
+            tie ||
+            (0, game_types_1.isPresentationStatus)(room.status) ||
+            room.status === 'vote_result';
         if (!allowed)
             throw new game_types_1.GameException('INVALID_STATUS');
+        if (room.status === 'reveal') {
+            await this.autofillMissingReveals(roomId);
+        }
         const active = await this.prisma.player.findMany({
             where: { roomId, status: 'active' },
             orderBy: { joinedAt: 'asc' },
@@ -637,29 +783,52 @@ let GameService = class GameService {
         return this.beginPresentation(roomId, { hostUserId: userId });
     }
     async advancePresentation(roomId, opts) {
-        if (opts?.hostUserId) {
-            await this.requireHost(roomId, opts.hostUserId);
-        }
         const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
         if (!(0, game_types_1.isPresentationStatus)(room.status))
             throw new game_types_1.GameException('INVALID_STATUS');
         this.assertNotPaused(room);
+        const actorUserId = opts?.actorUserId ?? opts?.hostUserId;
+        if (actorUserId) {
+            const actor = await this.prisma.player.findFirst({
+                where: { roomId, userId: actorUserId },
+            });
+            if (!actor || actor.status !== 'active') {
+                throw new game_types_1.GameException('PLAYER_NOT_ACTIVE');
+            }
+            const isHost = actor.role === 'host';
+            const isSpeaker = room.presentationPlayerId === actor.id;
+            if (!isHost && !isSpeaker) {
+                throw new game_types_1.GameException('FORBIDDEN_END_TURN');
+            }
+        }
         const order = this.parseJson(room.presentationOrderJson, []);
         const currentId = room.presentationPlayerId;
         const idx = currentId ? order.indexOf(currentId) : -1;
         const nextId = idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null;
+        if (currentId) {
+            await this.autofillMissingReveals(roomId, [currentId]);
+        }
         if (!nextId) {
             return this.beginVoting(roomId);
         }
         const phaseEndsAt = new Date(Date.now() + room.presentationDurationSec * 1000);
-        const updated = await this.prisma.room.update({
-            where: { id: roomId },
+        const claimed = await this.prisma.room.updateMany({
+            where: {
+                id: roomId,
+                presentationPlayerId: currentId,
+                status: { in: ['presentation', 'discussion'] },
+            },
             data: {
                 status: 'presentation',
                 presentationPlayerId: nextId,
                 phaseEndsAt,
             },
         });
+        if (claimed.count === 0) {
+            const latest = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
+            return { room: latest, skipped: true };
+        }
+        const updated = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
         await this.addEvent(roomId, 'presentation_advanced', {
             presentation_player_id: nextId,
             phase_ends_at: phaseEndsAt,
@@ -672,12 +841,14 @@ let GameService = class GameService {
         if (room.status === 'voting')
             return { room, already: true };
         const fromPresentation = (0, game_types_1.isPresentationStatus)(room.status);
-        const fromTie = room.status === 'vote_result' &&
-            this.parseJson(room.lastVoteSummaryJson, {}).tie === true;
+        const lastSummary = this.parseJson(room.lastVoteSummaryJson, {});
+        const fromTie = room.status === 'vote_result' && lastSummary.tie === true;
         if (!fromPresentation && !fromTie)
             throw new game_types_1.GameException('INVALID_STATUS');
+        if (fromPresentation) {
+            await this.autofillMissingReveals(roomId);
+        }
         const existingCandidates = this.parseJson(room.votingCandidateIdsJson, []);
-        const lastSummary = this.parseJson(room.lastVoteSummaryJson, {});
         const isRevote = existingCandidates.length > 0 &&
             (fromTie || (fromPresentation && lastSummary.tie === true));
         let candidateIds;
@@ -691,6 +862,7 @@ let GameService = class GameService {
             });
             candidateIds = active.map((p) => p.id);
         }
+        const seatsNeeded = isRevote ? Math.max(1, lastSummary.seats_needed ?? 1) : undefined;
         await this.prisma.vote.deleteMany({ where: { roomId, round: room.currentRound } });
         const phaseEndsAt = new Date(Date.now() + room.votingDurationSec * 1000);
         const updated = await this.prisma.room.update({
@@ -700,10 +872,14 @@ let GameService = class GameService {
                 phaseEndsAt,
                 presentationPlayerId: null,
                 votingCandidateIdsJson: JSON.stringify(candidateIds),
-                lastVoteSummaryJson: '{}',
+                lastVoteSummaryJson: JSON.stringify(seatsNeeded != null ? { seats_needed: seatsNeeded } : {}),
             },
         });
-        await this.addEvent(roomId, 'voting_started', { candidate_ids: candidateIds, phase_ends_at: phaseEndsAt }, updated.currentRound);
+        await this.addEvent(roomId, 'voting_started', {
+            candidate_ids: candidateIds,
+            phase_ends_at: phaseEndsAt,
+            eliminations: seatsNeeded,
+        }, updated.currentRound);
         return { room: updated };
     }
     async startVoting(userId, roomId) {
@@ -711,7 +887,7 @@ let GameService = class GameService {
         return this.beginVoting(roomId);
     }
     async submitVote(userId, roomId, targetPlayerId) {
-        return this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             const room = await tx.room.findUniqueOrThrow({ where: { id: roomId } });
             if (room.status !== 'voting')
                 throw new game_types_1.GameException('INVALID_STATUS');
@@ -771,10 +947,42 @@ let GameService = class GameService {
                     }),
                 },
             });
-            return { vote, progress: { cast, total: activeCount } };
+            return { vote, already_voted: false, progress: { cast, total: activeCount } };
         });
+        if (!result.already_voted && result.progress.cast >= result.progress.total) {
+            const resolved = await this.resolveVotingIfReady(roomId);
+            if (resolved) {
+                return { ...result, room: resolved.room, auto_completed: true };
+            }
+        }
+        return result;
+    }
+    async resolveVotingIfReady(roomId) {
+        const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
+        if (room.status !== 'voting' || room.pausedAt)
+            return null;
+        const activeCount = await this.prisma.player.count({
+            where: { roomId, status: 'active' },
+        });
+        const cast = await this.prisma.vote.count({
+            where: { roomId, round: room.currentRound },
+        });
+        if (cast < activeCount || activeCount === 0)
+            return null;
+        try {
+            return await this.resolveVoting(roomId);
+        }
+        catch (error) {
+            if (error instanceof game_types_1.GameException &&
+                (error.code === 'INVALID_STATUS' || error.code === 'VOTING_INCOMPLETE')) {
+                return null;
+            }
+            throw error;
+        }
     }
     async autofillMissingVotesAsSelf(roomId, round) {
+        const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
+        const candidates = this.parseJson(room.votingCandidateIdsJson, []);
         const activePlayers = await this.prisma.player.findMany({
             where: { roomId, status: 'active' },
         });
@@ -785,12 +993,25 @@ let GameService = class GameService {
         for (const player of activePlayers) {
             if (voted.has(player.id))
                 continue;
+            let targetPlayerId = player.id;
+            if (candidates.length > 0) {
+                const options = candidates.filter((id) => id !== player.id);
+                if (options.length > 0) {
+                    targetPlayerId = options[Math.floor(Math.random() * options.length)];
+                }
+                else if (candidates.includes(player.id)) {
+                    targetPlayerId = player.id;
+                }
+                else {
+                    targetPlayerId = candidates[Math.floor(Math.random() * candidates.length)];
+                }
+            }
             await this.prisma.vote.create({
                 data: {
                     roomId,
                     round,
                     voterId: player.id,
-                    targetPlayerId: player.id,
+                    targetPlayerId,
                 },
             });
         }
@@ -816,46 +1037,67 @@ let GameService = class GameService {
         });
         if (votes.length < activePlayers.length)
             throw new game_types_1.GameException('VOTING_INCOMPLETE');
+        const candidates = this.parseJson(room.votingCandidateIdsJson, []);
+        const tallyTargets = candidates.length > 0 ? candidates : activePlayers.map((p) => p.id);
         const tallyMap = new Map();
+        for (const id of tallyTargets)
+            tallyMap.set(id, 0);
         for (const vote of votes) {
+            if (!tallyMap.has(vote.targetPlayerId))
+                continue;
             tallyMap.set(vote.targetPlayerId, (tallyMap.get(vote.targetPlayerId) ?? 0) + 1);
         }
         const tallies = [...tallyMap.entries()]
             .map(([player_id, voteCount]) => ({ player_id, votes: voteCount }))
-            .sort((a, b) => b.votes - a.votes);
-        const maxVotes = tallies[0]?.votes ?? 0;
-        const leaders = tallies.filter((t) => t.votes === maxVotes).map((t) => t.player_id);
-        if (leaders.length > 1) {
+            .sort((a, b) => b.votes - a.votes || a.player_id.localeCompare(b.player_id));
+        const pendingSummary = this.parseJson(room.lastVoteSummaryJson, {});
+        const isRevote = candidates.length > 0 && pendingSummary.seats_needed != null;
+        const seats = isRevote
+            ? Math.max(1, pendingSummary.seats_needed ?? 1)
+            : (0, game_rules_1.eliminationsThisRound)({
+                activeCount: activePlayers.length,
+                shelterCapacity: room.shelterCapacity ?? 0,
+                currentRound: room.currentRound,
+                strategy: room.revealStrategy,
+            });
+        const picked = (0, game_rules_1.pickEliminations)(tallies, seats);
+        if (picked.eliminateIds.length > 0) {
+            await this.eliminatePlayers(roomId, room.currentRound, picked.eliminateIds);
+        }
+        if (picked.tieCandidateIds) {
             const phaseEndsAt = this.voteResultEndsAt();
             const updated = await this.prisma.room.update({
                 where: { id: roomId },
                 data: {
                     status: 'vote_result',
                     phaseEndsAt,
-                    votingCandidateIdsJson: JSON.stringify(leaders),
+                    votingCandidateIdsJson: JSON.stringify(picked.tieCandidateIds),
                     lastVoteSummaryJson: JSON.stringify({
                         tie: true,
-                        candidate_ids: leaders,
+                        candidate_ids: picked.tieCandidateIds,
+                        seats_needed: picked.seatsNeeded,
+                        eliminated_player_ids: picked.eliminateIds,
+                        eliminated_player_id: picked.eliminateIds[0] ?? null,
                         tallies,
                     }),
                 },
             });
-            await this.addEvent(roomId, 'vote_tie', { candidate_ids: leaders, tallies, phase_ends_at: phaseEndsAt }, room.currentRound);
-            return { room: updated, tie: true, summary: tallies };
+            await this.addEvent(roomId, 'vote_tie', {
+                candidate_ids: picked.tieCandidateIds,
+                seats_needed: picked.seatsNeeded,
+                eliminated_player_ids: picked.eliminateIds,
+                tallies,
+                phase_ends_at: phaseEndsAt,
+            }, room.currentRound);
+            return {
+                room: updated,
+                tie: true,
+                summary: tallies,
+                eliminated_player_ids: picked.eliminateIds,
+            };
         }
-        const eliminatedId = leaders[0];
-        await this.prisma.player.update({
-            where: { id: eliminatedId },
-            data: { status: 'eliminated', eliminatedAt: new Date() },
-        });
-        await this.prisma.playerCharacteristic.updateMany({
-            where: { playerId: eliminatedId, isRevealed: false },
-            data: {
-                isRevealed: true,
-                revealedRound: room.currentRound,
-                revealedAt: new Date(),
-            },
-        });
+        const eliminatedIds = picked.eliminateIds;
+        const eliminatedId = eliminatedIds[0] ?? null;
         const remaining = await this.prisma.player.count({ where: { roomId, status: 'active' } });
         if (remaining <= (room.shelterCapacity ?? 0)) {
             const updated = await this.prisma.room.update({
@@ -865,6 +1107,7 @@ let GameService = class GameService {
                     votingCandidateIdsJson: '[]',
                     lastVoteSummaryJson: JSON.stringify({
                         tie: false,
+                        eliminated_player_ids: eliminatedIds,
                         eliminated_player_id: eliminatedId,
                         tallies,
                     }),
@@ -881,10 +1124,21 @@ let GameService = class GameService {
                     isRevealed: true,
                     revealedRound: room.currentRound,
                     revealedAt: new Date(),
+                    revealSource: 'system',
                 },
             });
-            await this.addEvent(roomId, 'game_finished', { eliminated_player_id: eliminatedId, tallies }, room.currentRound);
-            return { room: updated, eliminated_player_id: eliminatedId, summary: tallies, tie: false };
+            await this.addEvent(roomId, 'game_finished', {
+                eliminated_player_ids: eliminatedIds,
+                eliminated_player_id: eliminatedId,
+                tallies,
+            }, room.currentRound);
+            return {
+                room: updated,
+                eliminated_player_id: eliminatedId,
+                eliminated_player_ids: eliminatedIds,
+                summary: tallies,
+                tie: false,
+            };
         }
         const phaseEndsAt = this.voteResultEndsAt();
         const updated = await this.prisma.room.update({
@@ -895,13 +1149,41 @@ let GameService = class GameService {
                 votingCandidateIdsJson: '[]',
                 lastVoteSummaryJson: JSON.stringify({
                     tie: false,
+                    eliminated_player_ids: eliminatedIds,
                     eliminated_player_id: eliminatedId,
                     tallies,
                 }),
             },
         });
-        await this.addEvent(roomId, 'player_eliminated', { eliminated_player_id: eliminatedId, tallies, phase_ends_at: phaseEndsAt }, room.currentRound);
-        return { room: updated, eliminated_player_id: eliminatedId, summary: tallies, tie: false };
+        await this.addEvent(roomId, 'player_eliminated', {
+            eliminated_player_ids: eliminatedIds,
+            eliminated_player_id: eliminatedId,
+            tallies,
+            phase_ends_at: phaseEndsAt,
+        }, room.currentRound);
+        return {
+            room: updated,
+            eliminated_player_id: eliminatedId,
+            eliminated_player_ids: eliminatedIds,
+            summary: tallies,
+            tie: false,
+        };
+    }
+    async eliminatePlayers(roomId, round, playerIds) {
+        const now = new Date();
+        await this.prisma.player.updateMany({
+            where: { id: { in: playerIds }, roomId },
+            data: { status: 'eliminated', eliminatedAt: now },
+        });
+        await this.prisma.playerCharacteristic.updateMany({
+            where: { playerId: { in: playerIds }, roomId, isRevealed: false },
+            data: {
+                isRevealed: true,
+                revealedRound: round,
+                revealedAt: now,
+                revealSource: 'system',
+            },
+        });
     }
     async nextRevealRound(userId, roomId) {
         await this.requireHost(roomId, userId);
@@ -910,8 +1192,6 @@ let GameService = class GameService {
     async advanceToNextRound(roomId) {
         const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
         this.assertNotPaused(room);
-        if (room.status === 'reveal')
-            return { room, already: true };
         const lastSummary = this.parseJson(room.lastVoteSummaryJson, {});
         const fromPresentationSkip = (0, game_types_1.isPresentationStatus)(room.status) && lastSummary.tie !== true;
         if (room.status !== 'vote_result' && !fromPresentationSkip) {
@@ -922,37 +1202,22 @@ let GameService = class GameService {
             if (lastSummary.tie && candidates.length > 0)
                 throw new game_types_1.GameException('TIE_REQUIRES_REVOTE');
         }
-        const nextRound = room.currentRound + 1;
-        const quota = (0, game_rules_1.revealQuotaForRound)(nextRound);
-        if (quota <= 0) {
-            await this.prisma.room.update({
-                where: { id: roomId },
-                data: {
-                    currentRound: nextRound,
-                    votingCandidateIdsJson: '[]',
-                    lastVoteSummaryJson: '{}',
-                    presentationPlayerId: null,
-                    presentationOrderJson: '[]',
-                },
-            });
-            await this.addEvent(roomId, 'round_advanced', { current_round: nextRound }, nextRound);
-            return this.beginPresentation(roomId);
+        if (fromPresentationSkip) {
+            await this.autofillMissingReveals(roomId);
         }
-        const phaseEndsAt = new Date(Date.now() + room.revealDurationSec * 1000);
-        const updated = await this.prisma.room.update({
+        const nextRound = room.currentRound + 1;
+        await this.prisma.room.update({
             where: { id: roomId },
             data: {
-                status: 'reveal',
                 currentRound: nextRound,
-                phaseEndsAt,
-                presentationPlayerId: null,
-                presentationOrderJson: '[]',
                 votingCandidateIdsJson: '[]',
                 lastVoteSummaryJson: '{}',
+                presentationPlayerId: null,
+                presentationOrderJson: '[]',
             },
         });
-        await this.addEvent(roomId, 'reveal_started', { phase_ends_at: phaseEndsAt }, updated.currentRound);
-        return { room: updated };
+        await this.addEvent(roomId, 'round_advanced', { current_round: nextRound }, nextRound);
+        return this.beginPresentation(roomId);
     }
     async setPaused(userId, roomId, paused) {
         await this.requireHost(roomId, userId);
@@ -1000,7 +1265,7 @@ let GameService = class GameService {
                 phaseEndsAt: { lte: now },
                 pausedAt: null,
                 status: {
-                    in: ['reveal', 'presentation', 'discussion', 'voting', 'vote_result'],
+                    in: ['prep', 'reveal', 'presentation', 'discussion', 'voting', 'vote_result'],
                 },
             },
             select: { id: true, code: true, status: true },
@@ -1023,7 +1288,7 @@ let GameService = class GameService {
         if (!room.phaseEndsAt || room.phaseEndsAt.getTime() > Date.now())
             return;
         const status = (0, game_types_1.normalizeGameStatus)(room.status);
-        if (status === 'reveal') {
+        if (status === 'prep' || status === 'reveal') {
             await this.beginPresentation(roomId);
             return;
         }
@@ -1070,6 +1335,7 @@ let GameService = class GameService {
                     isRevealed: true,
                     revealedAt: new Date(),
                     revealedRound: room.currentRound,
+                    revealSource: 'system',
                 },
             });
             await tx.gameEvent.create({
@@ -1091,7 +1357,10 @@ let GameService = class GameService {
         return room?.code ?? null;
     }
     async buildFinishStats(roomId) {
-        const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
+        const room = await this.prisma.room.findUniqueOrThrow({
+            where: { id: roomId },
+            include: { disaster: true, bunker: true },
+        });
         const [players, votes, traits] = await Promise.all([
             this.prisma.player.findMany({ where: { roomId } }),
             this.prisma.vote.findMany({ where: { roomId } }),
@@ -1101,6 +1370,25 @@ let GameService = class GameService {
             }),
         ]);
         const maxRound = Math.max(1, room.currentRound);
+        const synergy = (0, game_synergy_1.evaluateBunkerSynergy)({
+            disasterTitle: room.disaster?.title ?? '',
+            disasterDescription: room.disaster?.description ?? '',
+            bunkerTitle: room.bunker?.title ?? null,
+            bunkerDescription: room.bunker?.description ?? null,
+            players: players.map((player) => ({
+                id: player.id,
+                name: player.name,
+                status: player.status,
+                traits: traits
+                    .filter((t) => t.playerId === player.id)
+                    .map((t) => ({
+                    category: t.category,
+                    title: t.characteristic.title,
+                    description: t.characteristic.description,
+                })),
+            })),
+        });
+        const synergyByPlayer = new Map(synergy.players.map((p) => [p.player_id, p]));
         const stats = players.map((player) => {
             const votesAgainst = votes.filter((v) => v.targetPlayerId === player.id).length;
             const survived = player.status === 'active';
@@ -1116,22 +1404,29 @@ let GameService = class GameService {
                 rarity_counts[rarity] += 1;
                 rarityPower += game_rarity_1.RARITY_SCORE[rarity];
             }
+            const fit = synergyByPlayer.get(player.id);
+            const theme_fit = fit?.theme_fit ?? 0;
+            const synergyScore = fit?.synergy ?? 0;
+            const conflict = fit?.conflict ?? 0;
             return {
                 player_id: player.id,
                 name: player.name,
                 status: player.status,
                 survived,
-                survival_chance: (0, game_rarity_1.computeSurvivalChance)({
+                survival_chance: (0, game_synergy_1.computeThematicSurvivalChance)({
                     survived,
-                    votesAgainst,
-                    roundsLasted,
-                    rarityPower,
-                    maxRound,
+                    themeFit: theme_fit,
+                    synergy: synergyScore,
+                    conflict,
                 }),
+                theme_fit,
+                synergy: synergyScore,
+                conflict,
                 votes_against: votesAgainst,
                 rounds_lasted: roundsLasted,
                 rarity_power: rarityPower,
                 rarity_counts,
+                notes: fit?.notes ?? [],
             };
         });
         stats.sort((a, b) => {
@@ -1142,6 +1437,15 @@ let GameService = class GameService {
         return {
             shelter_capacity: room.shelterCapacity,
             max_round: maxRound,
+            bunker_outlook: synergy.bunker_outlook,
+            challenge_threshold: synergy.challenge_threshold,
+            passed: synergy.passed,
+            bunker_verdict: synergy.bunker_verdict,
+            highlights: synergy.highlights,
+            themes: synergy.themes,
+            categories: synergy.categories,
+            criteria: synergy.criteria,
+            disaster_title: room.disaster?.title ?? null,
             players: stats,
         };
     }
@@ -1195,6 +1499,7 @@ let GameService = class GameService {
             is_revealed: showAllTraits ? true : item.isRevealed,
             revealed_round: item.revealedRound,
             revealed_at: item.revealedAt?.toISOString() ?? null,
+            reveal_source: item.revealSource ?? 'player',
             characteristic: {
                 id: item.characteristic.id,
                 category: item.characteristic.category,
@@ -1232,7 +1537,9 @@ let GameService = class GameService {
             : votes.filter((v) => v.voterId === me.id);
         const finish_stats = room.status === 'finished' ? await this.buildFinishStats(room.id) : null;
         return {
-            room: this.serializeRoom(room),
+            room: this.serializeRoom(room, {
+                activeCount: activeVoters.length,
+            }),
             players: players.map((p) => this.serializePlayer(p)),
             me: this.serializePlayer(me),
             disaster: room.disaster
@@ -1287,8 +1594,19 @@ let GameService = class GameService {
             mocks_enabled: (0, mock_bots_config_1.isMockBotsEnabled)(),
         };
     }
-    serializeRoom(room) {
+    serializeRoom(room, opts) {
         const status = (0, game_types_1.normalizeGameStatus)(room.status);
+        const lastVoteSummary = this.parseJson(room.lastVoteSummaryJson, {});
+        const activeCount = opts?.activeCount ?? 0;
+        const plannedEliminations = lastVoteSummary.seats_needed != null &&
+            (status === 'voting' || status === 'vote_result')
+            ? Math.max(1, lastVoteSummary.seats_needed)
+            : (0, game_rules_1.eliminationsThisRound)({
+                activeCount,
+                shelterCapacity: room.shelterCapacity ?? 0,
+                currentRound: room.currentRound,
+                strategy: room.revealStrategy,
+            });
         return {
             id: room.id,
             code: room.code,
@@ -1297,6 +1615,8 @@ let GameService = class GameService {
             current_round: room.currentRound,
             max_players: room.maxPlayers,
             shelter_capacity: room.shelterCapacity,
+            planned_rounds: room.plannedRounds,
+            reveal_plan: (0, game_rules_1.distributeRevealQuotas)(room.plannedRounds && room.plannedRounds > 0 ? room.plannedRounds : 3, room.revealStrategy),
             package_id: room.packageId,
             disaster_id: room.disasterId,
             bunker_id: room.bunkerId,
@@ -1304,13 +1624,16 @@ let GameService = class GameService {
             presentation_duration_sec: room.presentationDurationSec,
             voting_duration_sec: room.votingDurationSec,
             reveal_duration_sec: room.revealDurationSec,
+            prep_duration_sec: room.prepDurationSec,
+            reveal_strategy: (0, game_rules_1.normalizeRevealStrategy)(room.revealStrategy),
             presentation_player_id: room.presentationPlayerId,
             presentation_order: this.parseJson(room.presentationOrderJson, []),
             phase_ends_at: room.phaseEndsAt?.toISOString() ?? null,
             paused_at: room.pausedAt?.toISOString() ?? null,
             pause_remaining_ms: room.pauseRemainingMs,
             is_paused: Boolean(room.pausedAt),
-            reveal_quota: (0, game_rules_1.revealQuotaForRound)(room.currentRound),
+            reveal_quota: (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds),
+            eliminations_this_round: plannedEliminations,
             voting_candidate_ids: this.parseJson(room.votingCandidateIdsJson, []),
             last_vote_summary: this.parseJson(room.lastVoteSummaryJson, {}),
             created_at: room.createdAt.toISOString(),
@@ -1325,10 +1648,25 @@ let GameService = class GameService {
             name: player.name,
             role: player.role,
             status: player.status,
+            is_ready: Boolean(player.isReady),
             joined_at: player.joinedAt.toISOString(),
             last_seen_at: player.lastSeenAt?.toISOString() ?? null,
             eliminated_at: player.eliminatedAt?.toISOString() ?? null,
         };
+    }
+    async assertUniquePlayerName(tx, roomId, name, exceptPlayerId) {
+        const needle = name.trim().toLocaleLowerCase('ru');
+        const players = await tx.player.findMany({
+            where: {
+                roomId,
+                status: { not: 'disconnected' },
+                ...(exceptPlayerId ? { id: { not: exceptPlayerId } } : {}),
+            },
+            select: { id: true, name: true },
+        });
+        if (players.some((p) => p.name.trim().toLocaleLowerCase('ru') === needle)) {
+            throw new game_types_1.GameException('NAME_TAKEN');
+        }
     }
 };
 exports.GameService = GameService;

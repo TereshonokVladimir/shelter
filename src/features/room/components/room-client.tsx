@@ -1,19 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { RoomHeader } from '@/components/room-header/room-header'
 import { LobbyView } from '@/features/lobby/components/lobby-view'
+import { PrepView } from '@/features/prep/components/prep-view'
 import { RevealView } from '@/features/reveal/components/reveal-view'
 import { PresentationView } from '@/features/presentation/components/presentation-view'
 import { VotingView } from '@/features/voting/components/voting-view'
 import { VoteResultView } from '@/features/voting/components/vote-result-view'
 import { ResultsView } from '@/features/results/components/results-view'
 import { JoinRoomForm } from '@/features/room/components/join-room-form'
-import { PlayersRail } from '@/features/room/components/players-rail'
-import { ContextRail } from '@/features/room/components/context-rail'
 import { RoomWorkspace } from '@/features/room/components/room-workspace'
+import { RoomSideNav } from '@/features/room/components/room-side-nav'
 import { HostPauseControls } from '@/features/room/components/host-pause-controls'
 import {
   fetchRoomSnapshot,
@@ -79,19 +79,57 @@ export function RoomClient({ code }: RoomClientProps) {
     onUpdate,
   })
 
+  useEffect(() => {
+    if (!isReconnecting) return
+    toast.loading('Переподключение…', {
+      id: 'room-reconnect',
+      description: 'Восстанавливаем связь с комнатой',
+      duration: Infinity,
+    })
+    return () => {
+      toast.dismiss('room-reconnect')
+    }
+  }, [isReconnecting])
+
+  const wasPausedRef = useRef(false)
+  useEffect(() => {
+    const paused = Boolean(snapshot?.room.is_paused)
+    if (paused && !wasPausedRef.current) {
+      toast.warning('Игра на паузе', {
+        id: 'room-paused',
+        description: 'Таймеры остановлены у всех игроков.',
+        duration: 2800,
+      })
+    }
+    if (!paused && wasPausedRef.current) {
+      toast.dismiss('room-paused')
+    }
+    wasPausedRef.current = paused
+  }, [snapshot?.room.is_paused])
+
   if (loading) {
     return (
-      <main className="flex h-dvh flex-col overflow-hidden">
-        <div className="border-b border-border/40 px-4 py-4">
-          <Skeleton className="h-6 w-40" />
-        </div>
-        <div className="grid min-h-0 flex-1 grid-cols-[14rem_1fr_18rem] gap-0">
-          <Skeleton className="h-full rounded-none" />
-          <div className="flex flex-col gap-4 p-6">
-            <Skeleton className="h-8 w-56" />
-            <Skeleton className="h-40 w-full" />
+      <main className="bunker-atmosphere flex h-dvh flex-col overflow-hidden">
+        <div className="bunker-dust" aria-hidden />
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+          <div className="flex h-12 shrink-0 items-center border-b border-amber-900/35 bg-stone-950/80 px-3 sm:h-14 sm:px-4">
+            <Skeleton className="h-5 w-28 bg-stone-800/80" />
+            <Skeleton className="ml-3 h-5 w-20 bg-stone-800/80" />
           </div>
-          <Skeleton className="h-full rounded-none" />
+          <RoomWorkspace>
+            <div className="bunker-panel flex h-full min-h-0 flex-col overflow-hidden">
+              <div className="bunker-hazard-stripe h-1.5 shrink-0" aria-hidden />
+              <div className="flex flex-col gap-3 border-b border-amber-900/30 px-4 py-3">
+                <Skeleton className="h-3 w-24 bg-stone-800/80" />
+                <Skeleton className="h-7 w-40 bg-stone-800/80" />
+                <Skeleton className="h-4 w-full max-w-md bg-stone-800/80" />
+              </div>
+              <div className="flex flex-1 flex-col gap-3 p-4">
+                <Skeleton className="h-24 w-full bg-stone-800/80" />
+                <Skeleton className="h-40 w-full bg-stone-800/80" />
+              </div>
+            </div>
+          </RoomWorkspace>
         </div>
       </main>
     )
@@ -142,142 +180,122 @@ export function RoomClient({ code }: RoomClientProps) {
   return (
     <main className="bunker-atmosphere flex h-dvh flex-col overflow-hidden">
       <div className="bunker-dust" aria-hidden />
+      <div className="bunker-crop" aria-hidden />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-      <RoomHeader
-        code={room.code}
-        status={room.status}
-        round={room.current_round}
-        isReconnecting={isReconnecting}
-        actions={
-          isHost && inGame ? (
-            <HostPauseControls
-              roomId={room.id}
-              isPaused={Boolean(room.is_paused)}
+        <RoomHeader
+          code={room.code}
+          status={room.status}
+          round={room.current_round}
+          isReconnecting={isReconnecting}
+          isPaused={Boolean(room.is_paused)}
+          actions={
+            <RoomSideNav
+              room={room}
+              players={players}
+              meId={me.id}
+              isHost={isHost}
+              disaster={disaster}
+              bunker={bunker}
+              events={events}
+              showInvite={
+                inLobby || room.status === 'prep' || isPresentationPhase(room.status)
+              }
+              pendingRemove={pendingRemove}
+              onRemove={inLobby ? removePlayer : undefined}
+              speakingPlayerId={
+                isPresentationPhase(room.status) ? room.presentation_player_id : null
+              }
+              trailing={
+                isHost && inGame ? (
+                  <HostPauseControls
+                    roomId={room.id}
+                    isPaused={Boolean(room.is_paused)}
+                    onChanged={onUpdate}
+                  />
+                ) : null
+              }
+            />
+          }
+        />
+
+        <RoomWorkspace>
+          {room.status === 'lobby' ? (
+            <LobbyView
+              room={room}
+              players={players}
+              me={me}
+              mocksEnabled={mocksEnabled}
               onChanged={onUpdate}
             />
-          ) : null
-        }
-      />
+          ) : null}
 
-      {room.is_paused ? (
-        <div className="bunker-hazard-stripe shrink-0 border-b border-amber-800/40 px-4 py-2 text-center text-sm font-medium text-amber-100">
-          Игра на паузе — таймеры остановлены у всех.
-        </div>
-      ) : null}
+          {room.status === 'prep' ? (
+            <PrepView
+              room={room}
+              me={me}
+              characteristics={characteristics}
+              disaster={snapshot.disaster}
+              bunker={snapshot.bunker}
+              onChanged={onUpdate}
+            />
+          ) : null}
 
-      <RoomWorkspace
-        left={
-          <PlayersRail
-            players={players}
-            meId={me.id}
-            isHost={isHost}
-            capacity={room.max_players}
-            pending={pendingRemove}
-            onRemove={inLobby ? removePlayer : undefined}
-            speakingPlayerId={
-              room.status === 'presentation' || room.status === 'discussion'
-                ? room.presentation_player_id
-                : null
-            }
-          />
-        }
-        right={
-          <ContextRail
-            room={room}
-            disaster={disaster}
-            bunker={bunker}
-            events={events}
-            showInvite={inLobby || room.status === 'reveal'}
-          />
-        }
-        mobileTop={
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-            {players.map((player) => (
-              <span
-                key={player.id}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs ${
-                  player.id === room.presentation_player_id &&
-                  (room.status === 'presentation' || room.status === 'discussion')
-                    ? 'border-amber-400/70 bg-amber-900/50 text-amber-50 ring-1 ring-amber-400/40'
-                    : player.id === me.id
-                      ? 'border-amber-700/60 bg-amber-950/40 text-amber-100'
-                      : player.status === 'eliminated'
-                        ? 'border-border/30 text-stone-500'
-                        : 'border-border/40 text-stone-300'
-                }`}
-              >
-                {player.name}
-                {player.id === room.presentation_player_id &&
-                (room.status === 'presentation' || room.status === 'discussion')
-                  ? ' · речь'
-                  : ''}
-              </span>
-            ))}
-          </div>
-        }
-        center={
-          <>
-            {room.status === 'lobby' ? (
-              <LobbyView room={room} players={players} me={me} mocksEnabled={mocksEnabled} />
-            ) : null}
+          {room.status === 'reveal' ? (
+            <RevealView
+              room={room}
+              players={players}
+              me={me}
+              characteristics={characteristics}
+              actionCards={actionCards}
+              mocksEnabled={mocksEnabled}
+              onChanged={onUpdate}
+            />
+          ) : null}
 
-            {room.status === 'reveal' ? (
-              <RevealView
-                room={room}
-                players={players}
-                me={me}
-                characteristics={characteristics}
-                actionCards={actionCards}
-                mocksEnabled={mocksEnabled}
-                onChanged={onUpdate}
-              />
-            ) : null}
+          {isPresentationPhase(room.status) ? (
+            <PresentationView
+              room={room}
+              players={players}
+              me={me}
+              characteristics={characteristics}
+              actionCards={actionCards}
+              mocksEnabled={mocksEnabled}
+              onChanged={onUpdate}
+            />
+          ) : null}
 
-            {isPresentationPhase(room.status) ? (
-              <PresentationView
-                room={room}
-                players={players}
-                me={me}
-                characteristics={characteristics}
-                actionCards={actionCards}
-                onChanged={onUpdate}
-              />
-            ) : null}
+          {room.status === 'voting' ? (
+            <VotingView
+              room={room}
+              players={players}
+              me={me}
+              votes={votes}
+              myVote={myVote}
+              voteProgress={voteProgress}
+              mocksEnabled={mocksEnabled}
+              onChanged={onUpdate}
+            />
+          ) : null}
 
-            {room.status === 'voting' ? (
-              <VotingView
-                room={room}
-                players={players}
-                me={me}
-                votes={votes}
-                myVote={myVote}
-                voteProgress={voteProgress}
-                mocksEnabled={mocksEnabled}
-                onChanged={onUpdate}
-              />
-            ) : null}
+          {room.status === 'vote_result' ? (
+            <VoteResultView
+              room={room}
+              players={players}
+              me={me}
+              characteristics={characteristics}
+              onChanged={onUpdate}
+            />
+          ) : null}
 
-            {room.status === 'vote_result' ? (
-              <VoteResultView
-                room={room}
-                players={players}
-                me={me}
-                characteristics={characteristics}
-                onChanged={onUpdate}
-              />
-            ) : null}
-
-            {room.status === 'finished' ? (
-              <ResultsView
-                room={room}
-                players={players}
-                characteristics={characteristics}
-                finishStats={snapshot.finish_stats}
-              />
-            ) : null}
-          </>
-        }
-      />
+          {room.status === 'finished' ? (
+            <ResultsView
+              room={room}
+              players={players}
+              characteristics={characteristics}
+              finishStats={snapshot.finish_stats}
+            />
+          ) : null}
+        </RoomWorkspace>
       </div>
     </main>
   )

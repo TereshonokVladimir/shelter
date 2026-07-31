@@ -10,10 +10,11 @@ export declare class MockBotsService {
         players: {
             id: string;
             name: string;
-            userId: string;
             roomId: string;
+            userId: string;
             role: string;
             status: string;
+            isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;

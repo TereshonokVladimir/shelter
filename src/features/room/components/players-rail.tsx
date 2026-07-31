@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Player } from '@/lib/api/types'
@@ -11,8 +12,11 @@ interface PlayersRailProps {
   onRemove?: (playerId: string) => void
   pending?: boolean
   capacity?: number | null
-  /** Current presentation speaker */
   speakingPlayerId?: string | null
+  /** Compact panel for sheets / overlays */
+  embedded?: boolean
+  /** Show lobby ready badges */
+  showReady?: boolean
 }
 
 export function PlayersRail({
@@ -23,21 +27,28 @@ export function PlayersRail({
   pending,
   capacity,
   speakingPlayerId,
+  embedded = false,
+  showReady = false,
 }: PlayersRailProps) {
   const active = players.filter((p) => p.status === 'active').length
   const eliminated = players.filter((p) => p.status === 'eliminated').length
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-r border-border/50 bg-stone-900/55">
-      <div className="border-b border-border/30 py-3 pr-10 pl-4">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-stone-500">Игроки</p>
+    <aside
+      className={cn(
+        'flex h-full min-h-0 flex-col',
+        !embedded && 'border-r border-border/50 bg-stone-900/55',
+      )}
+    >
+      <div className={cn('border-b border-border/30 px-4 py-3', !embedded && 'pr-10')}>
+        <p className="text-[11px] uppercase tracking-[0.2em] text-stone-500">Состав</p>
         <p className="mt-1 text-sm text-stone-200">
           {active} активных
           {capacity != null ? ` · мест ${capacity}` : null}
           {eliminated > 0 ? ` · вне ${eliminated}` : null}
         </p>
       </div>
-      <ul className="scrollbar-none flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+      <ul className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {players.map((player) => {
           const isMe = player.id === meId
           const isEliminated = player.status === 'eliminated'
@@ -66,6 +77,11 @@ export function PlayersRail({
                         {player.role === 'host' ? 'ведущий' : 'игрок'}
                         {isMe ? ' · вы' : ''}
                         {isEliminated ? ' · исключён' : ''}
+                        {showReady && !isEliminated
+                          ? player.is_ready
+                            ? ' · готов'
+                            : ' · ждёт'
+                          : ''}
                       </>
                     )}
                   </p>
@@ -87,5 +103,20 @@ export function PlayersRail({
         })}
       </ul>
     </aside>
+  )
+}
+
+/** Compact speaking indicator for the main phase header (mobile/desktop). */
+export function SpeakingChip({
+  name,
+  isYou,
+}: {
+  name: string
+  isYou?: boolean
+}): ReactNode {
+  return (
+    <span className="inline-flex max-w-[12rem] items-center truncate rounded-md border border-amber-500/40 bg-amber-950/50 px-2 py-0.5 text-xs text-amber-100">
+      {isYou ? 'Ваш ход' : name}
+    </span>
   )
 }

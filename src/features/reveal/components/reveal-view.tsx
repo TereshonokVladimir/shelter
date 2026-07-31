@@ -4,10 +4,10 @@ import { useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { GameTimer } from '@/components/game-timer/game-timer'
-import { PlayerCard } from '@/components/player-card/player-card'
 import { ActionCardsPanel } from '@/features/game/components/action-cards-panel'
+import { DossierBook } from '@/features/game/components/dossier-book'
+import { NotebookProfile } from '@/features/game/components/notebook-profile'
 import { HostBotsButton } from '@/features/game/components/host-bots-button'
-import { PlayersCompare } from '@/features/game/components/players-compare'
 import { PhaseShell } from '@/features/room/components/phase-shell'
 import {
   beginPresentationRequest,
@@ -47,7 +47,10 @@ export function RevealView({
         CHARACTERISTIC_CATEGORIES.indexOf(b.category),
     )
   const revealedThisRound = myChars.filter(
-    (c) => c.is_revealed && c.revealed_round === room.current_round,
+    (c) =>
+      c.is_revealed &&
+      c.revealed_round === room.current_round &&
+      (c.reveal_source ?? 'player') === 'player',
   ).length
   const hidden = myChars.filter((c) => !c.is_revealed)
   const others = players.filter((p) => p.id !== me.id)
@@ -75,13 +78,14 @@ export function RevealView({
     quota === 0
       ? 'В этом раунде раскрытий нет — ждите перехода к речам.'
       : canReveal
-        ? `Раскройте ещё ${remainingQuota} из ${quota} в этом раунде. Одна характеристика останется скрытой до конца.`
+        ? `Раскройте ещё ${remainingQuota} из ${quota} в этом раунде. Одна характеристика останется скрытой до конца. Не успеете — откроются случайные.`
         : remainingQuota === 0
           ? `Лимит раунда исчерпан (${quota}). Ждите речей или конца таймера.`
           : 'Одна характеристика должна остаться скрытой.'
 
   return (
     <PhaseShell
+      wide
       title={`Раскрытие · раунд ${room.current_round}`}
       subtitle={`План: 3 → 2 → 2. Сейчас можно открыть до ${quota}. Одна всегда остаётся скрытой.`}
       step={step}
@@ -127,45 +131,32 @@ export function RevealView({
         )
       }
     >
-      <div className="flex flex-col gap-8">
-        <section className="flex flex-col gap-3">
-          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Ваш персонаж
-          </h3>
-          <PlayerCard
+      <DossierBook
+        others={others}
+        characteristics={characteristics}
+        hasActions
+        actions={
+          <ActionCardsPanel
+            roomId={room.id}
+            meId={me.id}
+            players={players}
+            myCharacteristics={myChars}
+            actionCards={actionCards}
+            disabled={pending || isPaused || me.status !== 'active'}
+            onChanged={onChanged}
+          />
+        }
+        mine={
+          <NotebookProfile
             player={me}
             characteristics={myChars}
-            isSelf
             showHiddenAsOwner
-            columns={2}
             canReveal={canReveal}
             revealPending={pending || isPaused}
             onReveal={reveal}
           />
-        </section>
-
-        <ActionCardsPanel
-          roomId={room.id}
-          meId={me.id}
-          players={players}
-          myCharacteristics={myChars}
-          actionCards={actionCards}
-          disabled={pending || isPaused || me.status !== 'active'}
-          onChanged={onChanged}
-        />
-
-        <section className="flex min-h-0 flex-col gap-3">
-          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Остальные игроки
-          </h3>
-          <PlayersCompare
-            players={others}
-            characteristics={characteristics}
-            revealedOnly
-            emptyLabel="Ещё ничего не раскрыто"
-          />
-        </section>
-      </div>
+        }
+      />
     </PhaseShell>
   )
 }

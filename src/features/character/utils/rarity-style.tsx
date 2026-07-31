@@ -11,7 +11,6 @@ export const RARITY_LABELS: Record<TraitRarity, string> = {
   mythic: 'Мифическая',
 }
 
-/** TCG-style gem: shape + metal tone (MTG / Lorcana / Pokémon pattern). */
 export const RARITY_ICON: Record<TraitRarity, LucideIcon> = {
   common: Circle,
   uncommon: Diamond,
@@ -35,6 +34,7 @@ export function normalizeTraitRarity(value: string | null | undefined): TraitRar
   return 'common'
 }
 
+/** @deprecated Prefer full-frame trait cards; kept for compact lists. */
 export function RarityBadge({
   rarity,
   className,
@@ -67,14 +67,14 @@ export function RarityBadge({
   )
 }
 
-/** Full tile surface: rarity texture + sealed/open. Category color intentionally unused. */
+/** Full TCG-style card surface: rarity owns frame, band, and finish. */
 export function traitTileClass(
   rarity: TraitRarity | string | undefined,
   options: { revealed: boolean; visible: boolean },
 ) {
   const key = normalizeTraitRarity(rarity)
   return cn(
-    'trait-tile',
+    'trait-card',
     `trait-rarity-${key}`,
     options.revealed ? 'trait-state-open' : 'trait-state-sealed',
     options.visible && 'trait-known',

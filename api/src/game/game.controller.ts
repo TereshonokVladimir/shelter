@@ -13,7 +13,9 @@ import { GameService } from './game.service'
 import { GameException } from './game.types'
 import {
   DEFAULT_PRESENTATION_SEC,
+  DEFAULT_PREP_SEC,
   DEFAULT_REVEAL_SEC,
+  DEFAULT_REVEAL_STRATEGY,
   DEFAULT_VOTING_SEC,
 } from './game.rules'
 import { EventsGateway } from '../realtime/events.gateway'
@@ -52,6 +54,8 @@ export class GameController {
       presentationDurationSec?: number
       votingDurationSec?: number
       revealDurationSec?: number
+      prepDurationSec?: number
+      revealStrategy?: string
       packageId?: string
       /** @deprecated prefer presentationDurationSec */
       discussionDurationSec?: number
@@ -72,6 +76,8 @@ export class GameController {
           DEFAULT_PRESENTATION_SEC,
         votingDurationSec: body.votingDurationSec ?? DEFAULT_VOTING_SEC,
         revealDurationSec: body.revealDurationSec ?? DEFAULT_REVEAL_SEC,
+        prepDurationSec: body.prepDurationSec ?? DEFAULT_PREP_SEC,
+        revealStrategy: body.revealStrategy ?? DEFAULT_REVEAL_STRATEGY,
         packageId,
       })
       this.events.emitRoomUpdated(result.room.code)
@@ -137,6 +143,22 @@ export class GameController {
   runBots(@CurrentUserId() userId: string, @Param('roomId') roomId: string) {
     return this.wrap(async () => {
       const result = await this.mocks.runBots(userId, roomId)
+      await this.game.advanceRevealIfReady(roomId)
+      await this.game.resolveVotingIfReady(roomId)
+      await this.afterRoomChange(roomId)
+      return result
+    })
+  }
+
+  @Post('rooms/:roomId/ready')
+  setReady(
+    @CurrentUserId() userId: string,
+    @Param('roomId') roomId: string,
+    @Body() body: { ready?: boolean },
+  ) {
+    return this.wrap(async () => {
+      const ready = body.ready !== false
+      const result = await this.game.setPlayerReady(userId, roomId, ready)
       await this.afterRoomChange(roomId)
       return result
     })
@@ -205,11 +227,11 @@ export class GameController {
     })
   }
 
-  /** Host: skip current speaker / end presentations early when last. */
+  /** Current speaker or host: end turn / skip to next speaker. */
   @Post('rooms/:roomId/presentation/advance')
   advancePresentation(@CurrentUserId() userId: string, @Param('roomId') roomId: string) {
     return this.wrap(async () => {
-      const result = await this.game.advancePresentation(roomId, { hostUserId: userId })
+      const result = await this.game.advancePresentation(roomId, { actorUserId: userId })
       await this.afterRoomChange(roomId)
       return result
     })

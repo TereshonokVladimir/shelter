@@ -1,16 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { CategoryChip } from '@/features/character/utils/category-style'
-import { RarityBadge, traitTileClass } from '@/features/character/utils/rarity-style'
+import { NotebookProfile } from '@/features/game/components/notebook-profile'
 import { CHARACTERISTIC_CATEGORIES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import type { Player, PlayerCharacteristicView } from '@/lib/api/types'
@@ -24,6 +17,10 @@ interface PlayersCompareProps {
   characteristics: PlayerCharacteristicView[]
   revealedOnly?: boolean
   emptyLabel?: string
+  focusPlayerId?: string | null
+  lockedMode?: ViewMode
+  /** When false (hidden tab), skip track positioning that fights page scroll */
+  active?: boolean
 }
 
 function traitsFor(
@@ -43,120 +40,220 @@ function traitsFor(
     )
 }
 
-function TraitList({
-  traits,
-  emptyLabel,
-}: {
-  traits: PlayerCharacteristicView[]
-  emptyLabel: string
-}) {
-  if (traits.length === 0) {
-    return <p className="px-1 py-2 text-sm text-muted-foreground">{emptyLabel}</p>
+function initialBrowseIndex(
+  players: Player[],
+  characteristics: PlayerCharacteristicView[],
+  revealedOnly: boolean,
+  focusPlayerId?: string | null,
+) {
+  if (focusPlayerId) {
+    const focusIdx = players.findIndex((p) => p.id === focusPlayerId)
+    if (focusIdx >= 0) return focusIdx
   }
-
-  return (
-    <ul className="flex flex-col gap-2">
-      {traits.map((item) => (
-        <li
-          key={item.id}
-          className={traitTileClass(item.characteristic.rarity, {
-            revealed: item.is_revealed,
-            visible: true,
-          })}
-        >
-          <div className="relative z-[1] px-3 py-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <RarityBadge rarity={item.characteristic.rarity} />
-              <CategoryChip category={item.category} />
-            </div>
-            <p className="mt-1.5 text-sm font-medium text-stone-50">
-              {item.characteristic.title}
-            </p>
-            {item.characteristic.description ? (
-              <p className="mt-0.5 text-xs leading-relaxed text-stone-400">
-                {item.characteristic.description}
-              </p>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ul>
+  const withTraits = players.findIndex(
+    (p) => traitsFor(p.id, characteristics, revealedOnly).length > 0,
   )
+  return withTraits >= 0 ? withTraits : 0
 }
 
-/** Default: compact list — several rows can stay open (shadcn Collapsible). */
 function BrowseMode({
   players,
   characteristics,
   revealedOnly,
   emptyLabel,
+  focusPlayerId,
+  active = true,
 }: {
   players: Player[]
   characteristics: PlayerCharacteristicView[]
   revealedOnly: boolean
   emptyLabel: string
+  focusPlayerId?: string | null
+  active?: boolean
 }) {
-  const [openIds, setOpenIds] = useState<Set<string>>(() => {
-    const first = players.find(
-      (p) => traitsFor(p.id, characteristics, revealedOnly).length > 0,
-    )
-    return new Set(first ? [first.id] : [])
-  })
+  const [index, setIndex] = useState(() =>
+    initialBrowseIndex(players, characteristics, revealedOnly, focusPlayerId),
+  )
+  const trackRef = useRef<HTMLDivElement>(null)
+  const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const skipScrollSync = useRef(false)
+  const preferSmooth = useRef(false)
+
+  /** Scroll only the carousel track — never ancestor page scroll. */
+  function scrollCardInTrack(nextIndex: number, behavior: ScrollBehavior) {
+    const track = trackRef.current
+    const player = players[nextIndex]
+    const node = player ? cardRefs.current.get(player.id) : null
+    if (!track || !node) return
+    const left = node.offsetLeft - (track.clientWidth - node.offsetWidth) / 2
+    track.scrollTo({ left: Math.max(0, left), behavior })
+  }
+
+  function goTo(next: number) {
+    const clamped = Math.max(0, Math.min(players.length - 1, next))
+    skipScrollSync.current = false
+    preferSmooth.current = true
+    setIndex(clamped)
+  }
+
+  useEffect(() => {
+    if (!focusPlayerId) return
+    const focusIdx = players.findIndex((p) => p.id === focusPlayerId)
+    if (focusIdx < 0) return
+    skipScrollSync.current = false
+    preferSmooth.current = false
+    setIndex(focusIdx)
+  }, [focusPlayerId, players])
+
+  useEffect(() => {
+    if (index > players.length - 1) setIndex(Math.max(0, players.length - 1))
+  }, [index, players.length])
+
+  useEffect(() => {
+    if (!active) return
+    if (skipScrollSync.current) {
+      skipScrollSync.current = false
+      return
+    }
+    const behavior = preferSmooth.current ? 'smooth' : 'auto'
+    preferSmooth.current = false
+    // rAF: panel may have just become visible after keepMounted unhide
+    requestAnimationFrame(() => {
+      scrollCardInTrack(index, behavior)
+    })
+  }, [active, index, players])
+
+  const canPrev = index > 0
+  const canNext = index < players.length - 1
+  const current = players[index]
 
   return (
-    <ul className="flex flex-col gap-2">
-      {players.map((player) => {
-        const traits = traitsFor(player.id, characteristics, revealedOnly)
-        const isOpen = openIds.has(player.id)
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="dossier-carousel-nav shrink-0"
+          disabled={!canPrev}
+          aria-label="Предыдущий игрок"
+          onClick={() => goTo(index - 1)}
+        >
+          <ChevronLeft className="size-5" />
+        </button>
 
-        return (
-          <li key={player.id}>
-            <Collapsible
-              open={isOpen}
-              onOpenChange={(open) => {
-                setOpenIds((prev) => {
-                  const next = new Set(prev)
-                  if (open) next.add(player.id)
-                  else next.delete(player.id)
-                  return next
-                })
+        <div
+          className="scrollbar-thin flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5"
+          role="tablist"
+          aria-label="Игроки"
+        >
+          {players.map((player, i) => {
+            const active = i === index
+            const isFocus = player.id === focusPlayerId
+            return (
+              <button
+                key={player.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={cn(
+                  'dossier-carousel-chip shrink-0',
+                  active && 'dossier-carousel-chip--active',
+                  player.status === 'eliminated' && 'opacity-55',
+                )}
+                onClick={() => goTo(i)}
+              >
+                <span className="dossier-hand truncate text-lg font-semibold leading-none">
+                  {player.name}
+                </span>
+                {isFocus ? (
+                  <Badge variant="default" className="ml-1 text-[9px]">
+                    Ход
+                  </Badge>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+
+        <button
+          type="button"
+          className="dossier-carousel-nav shrink-0"
+          disabled={!canNext}
+          aria-label="Следующий игрок"
+          onClick={() => goTo(index + 1)}
+        >
+          <ChevronRight className="size-5" />
+        </button>
+      </div>
+
+      <div
+        ref={trackRef}
+        className="dossier-carousel-track scrollbar-thin flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1"
+        onScroll={(event) => {
+          const track = event.currentTarget
+          const center = track.scrollLeft + track.clientWidth / 2
+          let best = 0
+          let bestDist = Number.POSITIVE_INFINITY
+          players.forEach((player, i) => {
+            const node = cardRefs.current.get(player.id)
+            if (!node) return
+            const mid = node.offsetLeft + node.offsetWidth / 2
+            const dist = Math.abs(mid - center)
+            if (dist < bestDist) {
+              bestDist = dist
+              best = i
+            }
+          })
+          if (best !== index) {
+            skipScrollSync.current = true
+            setIndex(best)
+          }
+        }}
+      >
+        {players.map((player, i) => {
+          const traits = traitsFor(player.id, characteristics, revealedOnly)
+          const isFocus = player.id === focusPlayerId
+          return (
+            <article
+              key={player.id}
+              ref={(node) => {
+                if (node) cardRefs.current.set(player.id, node)
+                else cardRefs.current.delete(player.id)
               }}
               className={cn(
-                'overflow-hidden rounded-xl border border-border/55 bg-card/90',
+                'dossier-paper-player dossier-carousel-card snap-center',
+                isFocus && 'data-focus',
                 player.status === 'eliminated' && 'opacity-55',
               )}
+              data-focus={isFocus ? '' : undefined}
+              aria-hidden={i !== index}
             >
-              <CollapsibleTrigger className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-stone-900/40">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-stone-50">
-                    {player.name}
-                  </span>
-                  <span className="block text-xs text-stone-500">
-                    {traits.length > 0 ? `открыто: ${traits.length}` : emptyLabel}
-                  </span>
-                </span>
-                <div className="flex shrink-0 items-center gap-2">
-                  {player.role === 'host' ? <Badge variant="secondary">Ведущий</Badge> : null}
-                  <ChevronDown className="size-4 text-stone-400 transition-transform duration-200 group-data-panel-open:rotate-180" />
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent
-                keepMounted
-                className="flex h-[var(--collapsible-panel-height)] flex-col overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 [&[hidden]:not([hidden='until-found'])]:hidden"
-              >
-                <div className="border-t border-border/40 px-3 py-3">
-                  <TraitList traits={traits} emptyLabel={emptyLabel} />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </li>
-        )
-      })}
-    </ul>
+              {traits.length === 0 ? (
+                <p className="dossier-hand px-1 py-6 text-center text-xl text-stone-500">
+                  {emptyLabel}
+                </p>
+              ) : (
+                <NotebookProfile
+                  player={player}
+                  characteristics={traits}
+                  revealedOnly={revealedOnly}
+                  compact
+                />
+              )}
+            </article>
+          )
+        })}
+      </div>
+
+      {current ? (
+        <p className="dossier-hand text-center text-base text-stone-500">
+          {index + 1} / {players.length}
+          {current.role === 'host' ? ' · ведущий' : ''}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
-/** Optional: pick 2–3 and put them side by side. */
 function CompareMode({
   players,
   characteristics,
@@ -199,7 +296,10 @@ function CompareMode({
         : 'md:grid-cols-2 xl:grid-cols-3'
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
+      <p className="dossier-hand text-lg text-stone-600">
+        Отметьте до {MAX_COMPARE} — листки встанут рядом.
+      </p>
       <ul className="flex flex-wrap gap-2">
         {players.map((player) => {
           const checked = selectedIds.includes(player.id)
@@ -210,22 +310,23 @@ function CompareMode({
             <li key={player.id}>
               <label
                 className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition',
-                  checked
-                    ? 'border-amber-600/50 bg-amber-950/40 text-amber-50'
-                    : 'border-border/50 bg-card/60 text-stone-300 hover:border-stone-500/50',
+                  'dossier-paper-player flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm transition',
+                  checked && 'data-focus',
                   atLimit && 'opacity-55',
                   player.status === 'eliminated' && 'opacity-50',
                 )}
+                data-focus={checked ? '' : undefined}
               >
                 <input
                   type="checkbox"
-                  className="size-3.5 accent-amber-500"
+                  className="size-3.5 accent-amber-700"
                   checked={checked}
                   disabled={atLimit}
                   onChange={() => toggle(player.id)}
                 />
-                <span className="max-w-[9rem] truncate font-medium">{player.name}</span>
+                <span className="dossier-hand max-w-[9rem] truncate text-lg font-semibold text-[var(--nb-ink)]">
+                  {player.name}
+                </span>
                 <span className="tabular-nums text-[11px] text-stone-500">{count}</span>
               </label>
             </li>
@@ -234,37 +335,32 @@ function CompareMode({
       </ul>
 
       {visible.length === 0 ? (
-        <p className="text-sm text-stone-500">
-          Отметьте 2–{MAX_COMPARE} игроков, чтобы сравнить их рядом.
-        </p>
+        <p className="text-sm text-stone-600">Выберите игроков выше.</p>
       ) : (
-        <div className={cn('grid gap-4', cols)}>
-          {visible.map((player) => (
-            <div
-              key={player.id}
-              className={cn(
-                'overflow-hidden rounded-xl border border-border/55 bg-card/90',
-                player.status === 'eliminated' && 'opacity-55',
-              )}
-            >
-              <div className="flex items-center justify-between gap-2 border-b border-border/40 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-stone-50">{player.name}</p>
-                  <p className="text-xs text-stone-500">
-                    открыто:{' '}
-                    {traitsFor(player.id, characteristics, revealedOnly).length}
-                  </p>
-                </div>
-                {player.role === 'host' ? <Badge variant="secondary">Ведущий</Badge> : null}
+        <div className={cn('grid gap-3', cols)}>
+          {visible.map((player) => {
+            const traits = traitsFor(player.id, characteristics, revealedOnly)
+            return (
+              <div
+                key={player.id}
+                className={cn(
+                  'dossier-paper-player p-3',
+                  player.status === 'eliminated' && 'opacity-55',
+                )}
+              >
+                {traits.length === 0 ? (
+                  <p className="py-2 text-sm text-stone-600">{emptyLabel}</p>
+                ) : (
+                  <NotebookProfile
+                    player={player}
+                    characteristics={traits}
+                    revealedOnly={revealedOnly}
+                    compact
+                  />
+                )}
               </div>
-              <div className="p-3">
-                <TraitList
-                  traits={traitsFor(player.id, characteristics, revealedOnly)}
-                  emptyLabel={emptyLabel}
-                />
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -276,47 +372,26 @@ export function PlayersCompare({
   characteristics,
   revealedOnly = true,
   emptyLabel = 'Ещё ничего не раскрыто',
+  focusPlayerId = null,
+  lockedMode,
+  active = true,
 }: PlayersCompareProps) {
-  const [mode, setMode] = useState<ViewMode>('browse')
-
   if (players.length === 0) {
-    return <p className="text-sm text-muted-foreground">Пока нет других игроков.</p>
+    return <p className="dossier-hand text-xl text-stone-500">Пока нет других игроков.</p>
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border border-border/50 bg-stone-950/40 p-1">
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'browse' ? 'default' : 'ghost'}
-            onClick={() => setMode('browse')}
-          >
-            Все игроки
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'compare' ? 'default' : 'ghost'}
-            onClick={() => setMode('compare')}
-          >
-            Сравнить
-          </Button>
-        </div>
-        <p className="text-xs text-stone-500">
-          {mode === 'browse'
-            ? 'Можно открыть несколько аккордеонов сразу.'
-            : `Выберите до ${MAX_COMPARE} и смотрите рядом.`}
-        </p>
-      </div>
+  const activeMode = lockedMode ?? 'browse'
 
-      {mode === 'browse' ? (
+  return (
+    <div className="flex flex-col gap-3">
+      {activeMode === 'browse' ? (
         <BrowseMode
           players={players}
           characteristics={characteristics}
           revealedOnly={revealedOnly}
           emptyLabel={emptyLabel}
+          focusPlayerId={focusPlayerId}
+          active={active}
         />
       ) : (
         <CompareMode

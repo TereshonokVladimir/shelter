@@ -18,7 +18,8 @@ export async function createRoomRequest(input: {
   maxPlayers: number
   presentationDurationSec: number
   votingDurationSec: number
-  revealDurationSec: number
+  prepDurationSec: number
+  revealStrategy: string
   packageId: string
 }) {
   return toResult(
@@ -70,6 +71,15 @@ export async function runBotsRequest(roomId: string) {
 
 export async function startGameRequest(roomId: string) {
   return toResult(apiFetch(`/api/rooms/${roomId}/start`, { method: 'POST' }))
+}
+
+export async function setPlayerReadyRequest(roomId: string, ready: boolean) {
+  return toResult(
+    apiFetch(`/api/rooms/${roomId}/ready`, {
+      method: 'POST',
+      body: JSON.stringify({ ready }),
+    }),
+  )
 }
 
 export async function revealCharacteristicRequest(

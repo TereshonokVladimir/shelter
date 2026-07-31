@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
-import { IBM_Plex_Mono, IBM_Plex_Sans, Unbounded } from 'next/font/google'
+import { Caveat, IBM_Plex_Mono, IBM_Plex_Sans, Unbounded } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { APP_NAME } from '@/lib/constants'
 import './globals.css'
 
@@ -24,6 +25,13 @@ const mono = IBM_Plex_Mono({
   weight: ['400', '500', '600'],
 })
 
+/** Notebook / dossier handwritten entries */
+const hand = Caveat({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-hand',
+  weight: ['400', '500', '600', '700'],
+})
+
 export const metadata: Metadata = {
   title: APP_NAME,
   description:
@@ -32,10 +40,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ru" className={`dark ${display.variable} ${sans.variable} ${mono.variable} h-full`}>
+    <html
+      lang="ru"
+      className={`dark ${display.variable} ${sans.variable} ${mono.variable} ${hand.variable} h-full`}
+    >
       <body className="min-h-full bg-background font-sans text-foreground antialiased">
-        {children}
-        <Toaster richColors position="top-center" />
+        <Toaster position="top-center" />
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   )

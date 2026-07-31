@@ -57,6 +57,8 @@ let GameController = class GameController {
                     game_rules_1.DEFAULT_PRESENTATION_SEC,
                 votingDurationSec: body.votingDurationSec ?? game_rules_1.DEFAULT_VOTING_SEC,
                 revealDurationSec: body.revealDurationSec ?? game_rules_1.DEFAULT_REVEAL_SEC,
+                prepDurationSec: body.prepDurationSec ?? game_rules_1.DEFAULT_PREP_SEC,
+                revealStrategy: body.revealStrategy ?? game_rules_1.DEFAULT_REVEAL_STRATEGY,
                 packageId,
             });
             this.events.emitRoomUpdated(result.room.code);
@@ -96,6 +98,16 @@ let GameController = class GameController {
     runBots(userId, roomId) {
         return this.wrap(async () => {
             const result = await this.mocks.runBots(userId, roomId);
+            await this.game.advanceRevealIfReady(roomId);
+            await this.game.resolveVotingIfReady(roomId);
+            await this.afterRoomChange(roomId);
+            return result;
+        });
+    }
+    setReady(userId, roomId, body) {
+        return this.wrap(async () => {
+            const ready = body.ready !== false;
+            const result = await this.game.setPlayerReady(userId, roomId, ready);
             await this.afterRoomChange(roomId);
             return result;
         });
@@ -137,7 +149,7 @@ let GameController = class GameController {
     }
     advancePresentation(userId, roomId) {
         return this.wrap(async () => {
-            const result = await this.game.advancePresentation(roomId, { hostUserId: userId });
+            const result = await this.game.advancePresentation(roomId, { actorUserId: userId });
             await this.afterRoomChange(roomId);
             return result;
         });
@@ -243,6 +255,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "runBots", null);
+__decorate([
+    (0, common_1.Post)('rooms/:roomId/ready'),
+    __param(0, (0, auth_service_1.CurrentUserId)()),
+    __param(1, (0, common_1.Param)('roomId')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], GameController.prototype, "setReady", null);
 __decorate([
     (0, common_1.Post)('rooms/:roomId/start'),
     __param(0, (0, auth_service_1.CurrentUserId)()),

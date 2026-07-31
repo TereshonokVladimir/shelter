@@ -1,5 +1,6 @@
 export type GameStatus =
   | 'lobby'
+  | 'prep'
   | 'reveal'
   | 'presentation'
   | 'discussion'

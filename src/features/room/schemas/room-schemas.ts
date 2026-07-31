@@ -2,16 +2,19 @@ import { z } from 'zod'
 import {
   DEFAULT_MAX_PLAYERS,
   DEFAULT_PRESENTATION_SEC,
-  DEFAULT_REVEAL_SEC,
+  DEFAULT_PREP_SEC,
+  DEFAULT_REVEAL_STRATEGY,
   DEFAULT_VOTING_SEC,
   MAX_PLAYERS_LIMIT,
   MAX_PRESENTATION_SEC,
-  MAX_REVEAL_SEC,
+  MAX_PREP_SEC,
   MAX_VOTING_SEC,
   MIN_PLAYERS,
   MIN_PRESENTATION_SEC,
-  MIN_REVEAL_SEC,
+  MIN_PREP_SEC,
   MIN_VOTING_SEC,
+  REVEAL_STRATEGIES,
+  type RevealStrategyId,
 } from '@/lib/constants'
 import { normalizeRoomCode } from '@/features/game/utils/game-logic'
 
@@ -27,6 +30,11 @@ export const roomCodeSchema = z
   .transform(normalizeRoomCode)
   .refine((code) => code.length >= 4 && code.length <= 8, 'Код комнаты: 4–8 символов')
   .refine((code) => /^[A-Z0-9]+$/.test(code), 'Код может содержать только латиницу и цифры')
+
+const revealStrategyIds = Object.keys(REVEAL_STRATEGIES) as [
+  RevealStrategyId,
+  ...RevealStrategyId[],
+]
 
 export const createRoomSchema = z.object({
   name: playerNameSchema,
@@ -45,11 +53,12 @@ export const createRoomSchema = z.object({
     .int()
     .min(MIN_VOTING_SEC, `Минимум ${MIN_VOTING_SEC} сек`)
     .max(MAX_VOTING_SEC, `Максимум ${MAX_VOTING_SEC} сек`),
-  revealDurationSec: z
+  prepDurationSec: z
     .number()
     .int()
-    .min(MIN_REVEAL_SEC, `Минимум ${MIN_REVEAL_SEC} сек`)
-    .max(MAX_REVEAL_SEC, `Максимум ${MAX_REVEAL_SEC} сек`),
+    .min(MIN_PREP_SEC, `Минимум ${MIN_PREP_SEC} сек`)
+    .max(MAX_PREP_SEC, `Максимум ${MAX_PREP_SEC} сек`),
+  revealStrategy: z.enum(revealStrategyIds),
   packageId: z.string().min(1, 'Выберите пакет контента'),
 })
 
@@ -66,6 +75,7 @@ export const createRoomDefaults: CreateRoomInput = {
   maxPlayers: DEFAULT_MAX_PLAYERS,
   presentationDurationSec: DEFAULT_PRESENTATION_SEC,
   votingDurationSec: DEFAULT_VOTING_SEC,
-  revealDurationSec: DEFAULT_REVEAL_SEC,
+  prepDurationSec: DEFAULT_PREP_SEC,
+  revealStrategy: DEFAULT_REVEAL_STRATEGY,
   packageId: '',
 }

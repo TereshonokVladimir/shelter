@@ -70,6 +70,7 @@ let MockBotsService = class MockBotsService {
                         name,
                         role: 'player',
                         status: 'active',
+                        isReady: true,
                         lastSeenAt: new Date(),
                     },
                 });
@@ -102,15 +103,21 @@ let MockBotsService = class MockBotsService {
                 return { acted: 0, status: room.status };
             }
             let acted = 0;
-            if (room.status === 'reveal') {
-                const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound);
+            if (room.status === 'reveal' ||
+                room.status === 'presentation' ||
+                room.status === 'discussion') {
+                const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+                const speakers = room.status === 'reveal'
+                    ? botPlayers
+                    : botPlayers.filter((b) => b.id === room.presentationPlayerId);
                 if (quota > 0) {
-                    for (const bot of botPlayers) {
+                    for (const bot of speakers) {
                         let already = await tx.playerCharacteristic.count({
                             where: {
                                 playerId: bot.id,
                                 isRevealed: true,
                                 revealedRound: room.currentRound,
+                                revealSource: game_rules_1.QUOTA_REVEAL_SOURCE,
                             },
                         });
                         while (already < quota) {
@@ -130,6 +137,7 @@ let MockBotsService = class MockBotsService {
                                     isRevealed: true,
                                     revealedRound: room.currentRound,
                                     revealedAt: new Date(),
+                                    revealSource: game_rules_1.QUOTA_REVEAL_SOURCE,
                                 },
                             });
                             await tx.gameEvent.create({

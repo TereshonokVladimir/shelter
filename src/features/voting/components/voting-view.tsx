@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react'
 import { Check, Vote as VoteIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import {
   Dialog,
   DialogContent,
@@ -58,8 +57,7 @@ export function VotingView({
   const progress = voteProgress.total
     ? Math.round((voteProgress.cast / voteProgress.total) * 100)
     : 0
-  const allVoted =
-    voteProgress.total > 0 && voteProgress.cast >= voteProgress.total
+  const allVoted = voteProgress.total > 0 && voteProgress.cast >= voteProgress.total
   void _votes
   const selected = candidates.find((c) => c.id === selectedId)
   const votedFor = myVote
@@ -92,53 +90,65 @@ export function VotingView({
     })
   }
 
+  const seatsOut = Math.max(1, room.eliminations_this_round ?? 1)
   const step = myVote
-    ? `Голос отдан${votedFor ? ` за «${votedFor}»` : ''}. Чужие выборы скрыты до конца.`
+    ? allVoted
+      ? 'Все проголосовали — итоги сейчас.'
+      : `Голос отдан${votedFor ? ` за «${votedFor}»` : ''}. Ждём остальных.`
     : selected
-      ? `Выбрано: ${selected.name}. Нажмите кнопку внизу, чтобы подтвердить.`
-      : 'Выберите игрока (не себя). Если не успеете — голос уйдёт в вас самих.'
+      ? `Выбрано: ${selected.name}. Подтвердите внизу.`
+      : 'Выберите игрока (не себя).'
 
   return (
-    <PhaseShell
-      title="Голосование"
-      subtitle="Кого исключить? По таймеру не проголосовавшие автоматически голосуют за себя."
-      step={step}
-      badge={
-        <GameTimer
-          phaseEndsAt={room.phase_ends_at}
-          label="До итогов"
-          paused={isPaused}
-          expiredHint="Непроголосовавшие получат голос за себя, затем результат."
-        />
-      }
-      footer={
-        <div className="flex flex-col gap-3">
-          {!myVote ? (
-            <Button
-              type="button"
-              size="lg"
-              className="h-12 w-full text-base sm:w-auto sm:min-w-64"
-              disabled={!selectedId || selectedId === me.id || pending || isPaused}
-              onClick={openConfirm}
-            >
-              <VoteIcon data-icon="inline-start" />
-              {selected
-                ? `Исключить: ${selected.name}`
-                : 'Сначала выберите игрока выше'}
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">
-              <Check className="size-4 shrink-0" />
-              Голос учтён{votedFor ? ` · ${votedFor}` : ''}. Ждём остальных.
-            </div>
-          )}
+    <>
+      <PhaseShell
+        wide
+        title="Голосование"
+        subtitle={
+          seatsOut > 1
+            ? `Исключить ${seatsOut} · голосуйте за одного`
+            : 'Кого исключить?'
+        }
+        step={step}
+        badge={
+          <GameTimer
+            phaseEndsAt={room.phase_ends_at}
+            label="До итогов"
+            paused={isPaused}
+            expiredHint={
+              allVoted
+                ? 'Итоги подводятся автоматически.'
+                : 'Непроголосовавшие получат автоголос по таймеру.'
+            }
+          />
+        }
+        footer={
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            {!myVote ? (
+              <Button
+                type="button"
+                size="lg"
+                className="h-11 w-full text-base sm:w-auto sm:min-w-56"
+                disabled={!selectedId || selectedId === me.id || pending || isPaused}
+                onClick={openConfirm}
+              >
+                <VoteIcon data-icon="inline-start" />
+                {selected ? `Исключить: ${selected.name}` : 'Выберите игрока'}
+              </Button>
+            ) : (
+              <div className="vote-cast-note">
+                <Check className="size-4 shrink-0" aria-hidden />
+                <span>
+                  Бюллетень принят{votedFor ? ` · ${votedFor}` : ''}.
+                </span>
+              </div>
+            )}
 
-          {isHost ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3">
-              <p className="text-xs text-stone-500">
-                Проголосовало {voteProgress.cast} из {voteProgress.total}
-              </p>
-              <div className="flex flex-wrap gap-2">
+            {isHost ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-mono text-xs tabular-nums text-stone-500">
+                  {voteProgress.cast}/{voteProgress.total}
+                </p>
                 {mocksEnabled ? (
                   <HostBotsButton
                     roomId={room.id}
@@ -146,7 +156,7 @@ export function VotingView({
                       (p) => p.name.startsWith('Бот ') && p.status === 'active',
                     )}
                     onChanged={onChanged}
-                    label="Боты голосуют"
+                    label="Боты"
                   />
                 ) : null}
                 <Button
@@ -154,85 +164,86 @@ export function VotingView({
                   disabled={!allVoted || pending || isPaused}
                   onClick={complete}
                 >
-                  Показать результат
+                  Результат
                 </Button>
               </div>
-            </div>
-          ) : null}
-        </div>
-      }
-    >
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between text-sm text-stone-300">
-            <span>Прогресс голосования</span>
-            <span className="font-mono tabular-nums">
-              {voteProgress.cast}/{voteProgress.total}
-            </span>
+            ) : null}
           </div>
-          <Progress value={progress} />
-        </div>
+        }
+      >
+        <div className="flex flex-col gap-5">
+          <div className="vote-ballot-progress">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="vote-ballot-progress-label">Собрано голосов</p>
+              <p className="vote-ballot-progress-count">
+                {voteProgress.cast}
+                <span className="opacity-55">/{voteProgress.total}</span>
+              </p>
+            </div>
+            <div className="vote-ballot-progress-track" aria-hidden>
+              <div
+                className="vote-ballot-progress-fill"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="vote-ballot-progress-hint">
+              {allVoted
+                ? 'Все отметились — можно смотреть итог.'
+                : 'Отметьте имя на бюллетене ниже.'}
+            </p>
+          </div>
 
-        <ul className="flex flex-col gap-2.5">
-          {candidates.map((player) => {
-            const isSelf = player.id === me.id
-            const isSelected = selectedId === player.id
-            const disabled = Boolean(myVote) || isSelf || pending
+          <ul className="vote-ballot-grid">
+            {candidates.map((player) => {
+              const isSelf = player.id === me.id
+              const isSelected = selectedId === player.id
+              const disabled = Boolean(myVote) || isSelf || pending
+              const isMine = myVote?.target_player_id === player.id
 
-            return (
-              <li key={player.id}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setSelectedId(player.id)}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition',
-                    'disabled:cursor-not-allowed disabled:opacity-45',
-                    isSelected && !myVote
-                      ? 'border-amber-500/60 bg-amber-950/45 ring-1 ring-amber-500/35'
-                      : 'border-border/60 bg-card/80 hover:border-stone-500/50 hover:bg-stone-900/60',
-                    myVote?.target_player_id === player.id &&
-                      'border-emerald-600/50 bg-emerald-950/35',
-                  )}
-                >
-                  <span
+              return (
+                <li key={player.id}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setSelectedId(player.id)}
                     className={cn(
-                      'flex size-5 shrink-0 items-center justify-center rounded-full border',
-                      isSelected || myVote?.target_player_id === player.id
-                        ? 'border-amber-400 bg-amber-400 text-stone-950'
-                        : 'border-stone-500',
+                      'vote-ballot',
+                      isSelected && !myVote && 'vote-ballot--selected',
+                      isMine && 'vote-ballot--cast',
+                      isSelf && 'vote-ballot--self',
                     )}
-                    aria-hidden
                   >
-                    {isSelected || myVote?.target_player_id === player.id ? (
-                      <Check className="size-3" />
-                    ) : null}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-stone-50">{player.name}</span>
-                    <span className="block text-xs text-stone-500">
-                      {isSelf
-                        ? 'За себя голосовать нельзя'
-                        : myVote
-                          ? myVote.target_player_id === player.id
-                            ? 'Ваш выбор'
-                            : 'Кандидат'
-                          : 'Нажмите, чтобы выбрать'}
+                    <span className="vote-ballot-mark" aria-hidden>
+                      {isSelected || isMine ? <Check className="size-3.5" /> : null}
                     </span>
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="vote-ballot-name">{player.name}</span>
+                      <span className="vote-ballot-meta">
+                        {isSelf
+                          ? 'свой голос нельзя'
+                          : isMine
+                            ? 'ваш выбор'
+                            : isSelected
+                              ? 'отмечено →'
+                              : 'кандидат'}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </PhaseShell>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
+        <DialogContent className="vote-confirm-dialog">
           <DialogHeader>
-            <DialogTitle>Подтвердить голос</DialogTitle>
+            <DialogTitle className="font-[family-name:var(--font-display)] tracking-wide">
+              Подтвердить бюллетень?
+            </DialogTitle>
             <DialogDescription>
-              Голос нельзя изменить. Исключить «{selected?.name}»?
+              Исключить «{selected?.name}». До конца фазы голос ещё можно сменить.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -240,11 +251,11 @@ export function VotingView({
               Отмена
             </Button>
             <Button type="button" disabled={pending} onClick={confirmVote}>
-              Да, исключить
+              Подтвердить
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PhaseShell>
+    </>
   )
 }

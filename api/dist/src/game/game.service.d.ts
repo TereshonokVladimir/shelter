@@ -1,6 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CharacteristicCategory, GameStatus } from './game.types';
 import { type PlayerFinishStat, type TraitRarity } from './game.rarity';
+import { evaluateBunkerSynergy } from './game.synergy';
 export declare class GameService {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -16,25 +17,30 @@ export declare class GameService {
         presentationDurationSec: number;
         votingDurationSec: number;
         revealDurationSec?: number;
+        prepDurationSec?: number;
+        revealStrategy?: string;
         packageId: string;
     }): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -45,11 +51,12 @@ export declare class GameService {
         };
         player: {
             id: string;
-            name: string;
-            userId: string;
             roomId: string;
+            userId: string;
+            name: string;
             role: string;
             status: string;
+            isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
@@ -61,21 +68,24 @@ export declare class GameService {
     }): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -86,16 +96,31 @@ export declare class GameService {
         };
         player: {
             id: string;
-            name: string;
-            userId: string;
             roomId: string;
+            userId: string;
+            name: string;
             role: string;
             status: string;
+            isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
         };
         rejoined: boolean;
+    }>;
+    setPlayerReady(userId: string, roomId: string, ready: boolean): Promise<{
+        player: {
+            id: string;
+            roomId: string;
+            userId: string;
+            name: string;
+            role: string;
+            status: string;
+            isReady: boolean;
+            joinedAt: Date;
+            lastSeenAt: Date | null;
+            eliminatedAt: Date | null;
+        };
     }>;
     removeLobbyPlayer(userId: string, roomId: string, playerId: string): Promise<{
         ok: boolean;
@@ -103,21 +128,24 @@ export declare class GameService {
     startGame(userId: string, roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -132,21 +160,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -172,27 +203,32 @@ export declare class GameService {
         already_started?: undefined;
     }>;
     private allActiveMetRevealQuota;
+    advanceRevealIfReady(roomId: string): Promise<{
+        advanced: boolean;
+    }>;
     revealCharacteristic(userId: string, roomId: string, playerCharacteristicId: string): Promise<{
         player_characteristic: {
             id: string;
-            category: string;
             roomId: string;
             playerId: string;
             isRevealed: boolean;
             revealedRound: number | null;
+            revealSource: string;
             characteristicId: string;
+            category: string;
             revealedAt: Date | null;
         };
         already_revealed: true;
     } | {
         player_characteristic: {
             id: string;
-            category: string;
             roomId: string;
             playerId: string;
             isRevealed: boolean;
             revealedRound: number | null;
+            revealSource: string;
             characteristicId: string;
+            category: string;
             revealedAt: Date | null;
         };
         already_revealed?: undefined;
@@ -205,26 +241,30 @@ export declare class GameService {
         ok: boolean;
         summary: Record<string, unknown>;
     }>;
+    private autofillMissingReveals;
     beginPresentation(roomId: string, opts?: {
         hostUserId?: string;
     }): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -237,21 +277,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -265,21 +308,24 @@ export declare class GameService {
     advanceToDiscussion(userId: string, roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -292,21 +338,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -318,25 +367,29 @@ export declare class GameService {
         already?: undefined;
     }>;
     advancePresentation(roomId: string, opts?: {
+        actorUserId?: string;
         hostUserId?: string;
     }): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -349,21 +402,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -373,25 +429,58 @@ export declare class GameService {
             lastVoteSummaryJson: string;
         };
         already?: undefined;
-    }>;
-    beginVoting(roomId: string): Promise<{
+    } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        skipped: true;
+    }>;
+    beginVoting(roomId: string): Promise<{
+        room: {
+            id: string;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            code: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -404,21 +493,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -432,21 +524,24 @@ export declare class GameService {
     startVoting(userId: string, roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -459,21 +554,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -487,13 +585,13 @@ export declare class GameService {
     submitVote(userId: string, roomId: string, targetPlayerId: string): Promise<{
         vote: {
             id: string;
-            createdAt: Date;
             roomId: string;
             round: number;
+            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
-        already_voted: boolean;
+        already_voted: true;
         progress: {
             cast: number;
             total: number;
@@ -501,37 +599,82 @@ export declare class GameService {
     } | {
         vote: {
             id: string;
-            createdAt: Date;
             roomId: string;
             round: number;
+            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
+        already_voted: false;
         progress: {
             cast: number;
             total: number;
         };
-        already_voted?: undefined;
-    }>;
-    private autofillMissingVotesAsSelf;
-    completeVoting(userId: string, roomId: string): Promise<{
+    } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        auto_completed: true;
+        vote: {
+            id: string;
+            roomId: string;
+            round: number;
+            createdAt: Date;
+            voterId: string;
+            targetPlayerId: string;
+        };
+        already_voted: false;
+        progress: {
+            cast: number;
+            total: number;
+        };
+    }>;
+    resolveVotingIfReady(roomId: string): Promise<{
+        room: {
+            id: string;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            code: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -543,25 +686,29 @@ export declare class GameService {
         already: boolean;
         tie?: undefined;
         summary?: undefined;
+        eliminated_player_ids?: undefined;
         eliminated_player_id?: undefined;
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -575,26 +722,30 @@ export declare class GameService {
             player_id: string;
             votes: number;
         }[];
+        eliminated_player_ids: string[];
         already?: undefined;
         eliminated_player_id?: undefined;
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -604,6 +755,117 @@ export declare class GameService {
             lastVoteSummaryJson: string;
         };
         eliminated_player_id: string;
+        eliminated_player_ids: string[];
+        summary: {
+            player_id: string;
+            votes: number;
+        }[];
+        tie: boolean;
+        already?: undefined;
+    } | null>;
+    private autofillMissingVotesAsSelf;
+    completeVoting(userId: string, roomId: string): Promise<{
+        room: {
+            id: string;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            code: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        already: boolean;
+        tie?: undefined;
+        summary?: undefined;
+        eliminated_player_ids?: undefined;
+        eliminated_player_id?: undefined;
+    } | {
+        room: {
+            id: string;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            code: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        tie: boolean;
+        summary: {
+            player_id: string;
+            votes: number;
+        }[];
+        eliminated_player_ids: string[];
+        already?: undefined;
+        eliminated_player_id?: undefined;
+    } | {
+        room: {
+            id: string;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            code: string;
+            hostPlayerId: string | null;
+            currentRound: number;
+            maxPlayers: number;
+            shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
+            disasterId: string | null;
+            bunkerId: string | null;
+            discussionDurationSec: number;
+            presentationDurationSec: number;
+            votingDurationSec: number;
+            revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
+            presentationPlayerId: string | null;
+            presentationOrderJson: string;
+            phaseEndsAt: Date | null;
+            pausedAt: Date | null;
+            pauseRemainingMs: number | null;
+            votingCandidateIdsJson: string;
+            lastVoteSummaryJson: string;
+        };
+        eliminated_player_id: string;
+        eliminated_player_ids: string[];
         summary: {
             player_id: string;
             votes: number;
@@ -614,21 +876,24 @@ export declare class GameService {
     resolveVoting(roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -640,25 +905,29 @@ export declare class GameService {
         already: boolean;
         tie?: undefined;
         summary?: undefined;
+        eliminated_player_ids?: undefined;
         eliminated_player_id?: undefined;
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -672,26 +941,30 @@ export declare class GameService {
             player_id: string;
             votes: number;
         }[];
+        eliminated_player_ids: string[];
         already?: undefined;
         eliminated_player_id?: undefined;
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -701,6 +974,7 @@ export declare class GameService {
             lastVoteSummaryJson: string;
         };
         eliminated_player_id: string;
+        eliminated_player_ids: string[];
         summary: {
             player_id: string;
             votes: number;
@@ -708,24 +982,28 @@ export declare class GameService {
         tie: boolean;
         already?: undefined;
     }>;
+    private eliminatePlayers;
     nextRevealRound(userId: string, roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -738,21 +1016,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -766,21 +1047,24 @@ export declare class GameService {
     advanceToNextRound(roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -793,21 +1077,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -821,21 +1108,24 @@ export declare class GameService {
     setPaused(userId: string, roomId: string, paused: boolean): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -848,21 +1138,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -878,21 +1171,24 @@ export declare class GameService {
     finishGame(userId: string, roomId: string): Promise<{
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -905,21 +1201,24 @@ export declare class GameService {
     } | {
         room: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            packageId: string | null;
             code: string;
-            status: string;
             hostPlayerId: string | null;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
+            plannedRounds: number | null;
+            packageId: string | null;
             disasterId: string | null;
             bunkerId: string | null;
             discussionDurationSec: number;
             presentationDurationSec: number;
             votingDurationSec: number;
             revealDurationSec: number;
+            revealStrategy: string;
+            prepDurationSec: number;
             presentationPlayerId: string | null;
             presentationOrderJson: string;
             phaseEndsAt: Date | null;
@@ -941,6 +1240,8 @@ export declare class GameService {
             current_round: number;
             max_players: number;
             shelter_capacity: number | null;
+            planned_rounds: number | null;
+            reveal_plan: number[];
             package_id: string | null;
             disaster_id: string | null;
             bunker_id: string | null;
@@ -948,6 +1249,8 @@ export declare class GameService {
             presentation_duration_sec: number;
             voting_duration_sec: number;
             reveal_duration_sec: number;
+            prep_duration_sec: number;
+            reveal_strategy: import("./game.rules").RevealStrategyId;
             presentation_player_id: string | null;
             presentation_order: string[];
             phase_ends_at: string | null;
@@ -955,6 +1258,7 @@ export declare class GameService {
             pause_remaining_ms: number | null;
             is_paused: boolean;
             reveal_quota: number;
+            eliminations_this_round: number;
             voting_candidate_ids: string[];
             last_vote_summary: {};
             created_at: string;
@@ -967,6 +1271,7 @@ export declare class GameService {
             name: string;
             role: string;
             status: string;
+            is_ready: boolean;
             joined_at: string;
             last_seen_at: string | null;
             eliminated_at: string | null;
@@ -978,6 +1283,7 @@ export declare class GameService {
             name: string;
             role: string;
             status: string;
+            is_ready: boolean;
             joined_at: string;
             last_seen_at: string | null;
             eliminated_at: string | null;
@@ -1003,6 +1309,7 @@ export declare class GameService {
             is_revealed: boolean;
             revealed_round: number | null;
             revealed_at: string | null;
+            reveal_source: string;
             characteristic: {
                 id: string;
                 category: CharacteristicCategory;
@@ -1030,6 +1337,15 @@ export declare class GameService {
         finish_stats: {
             shelter_capacity: number | null;
             max_round: number;
+            bunker_outlook: number;
+            challenge_threshold: number;
+            passed: boolean;
+            bunker_verdict: string;
+            highlights: string[];
+            themes: string[];
+            categories: ReturnType<typeof evaluateBunkerSynergy>["categories"];
+            criteria: ReturnType<typeof evaluateBunkerSynergy>["criteria"];
+            disaster_title: string | null;
             players: PlayerFinishStat[];
         } | null;
         events: {
@@ -1064,4 +1380,5 @@ export declare class GameService {
     } | null>;
     private serializeRoom;
     private serializePlayer;
+    private assertUniquePlayerName;
 }
