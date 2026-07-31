@@ -32,6 +32,7 @@ exports.ERROR_MESSAGES = {
     INVALID_REVEAL_DURATION: 'Длительность фазы раскрытия: 30–300 секунд.',
     INVALID_PREP_DURATION: 'Время на ознакомление: 0–180 секунд.',
     INVALID_REVEAL_STRATEGY: 'Неизвестная стратегия раскрытия.',
+    INVALID_REVEAL_PLAN: 'Кастомный план: сумма по раундам должна быть 7.',
     ROOM_NOT_FOUND: 'Комната не найдена.',
     ROOM_NOT_JOINABLE: 'В эту комнату уже нельзя войти.',
     ROOM_FULL: 'В комнате нет свободных мест.',

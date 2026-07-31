@@ -155,7 +155,7 @@ export function PresentationView({
       title={`Ход · раунд ${room.current_round}`}
       subtitle={
         isTieRevote
-          ? 'Речи перед переголосованием'
+          ? `Речи кандидатов ничьей · ${order.length}`
           : quota > 0
             ? `${strategy.label} · до ${quota} карт`
             : 'Только речи'

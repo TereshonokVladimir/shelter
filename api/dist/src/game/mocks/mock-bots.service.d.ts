@@ -9,9 +9,9 @@ export declare class MockBotsService {
         added: number;
         players: {
             id: string;
-            name: string;
             roomId: string;
             userId: string;
+            name: string;
             role: string;
             status: string;
             isReady: boolean;

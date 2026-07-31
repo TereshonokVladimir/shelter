@@ -1,6 +1,6 @@
 export declare const ALWAYS_HIDDEN_COUNT = 1;
 export declare const TOTAL_VOLUNTARY_REVEALS = 7;
-export type RevealStrategyId = 'classic' | 'slow' | 'sprint';
+export type RevealStrategyId = 'classic' | 'slow' | 'custom';
 export declare const REVEAL_STRATEGIES: Record<RevealStrategyId, {
     label: string;
     description: string;
@@ -8,8 +8,11 @@ export declare const REVEAL_STRATEGIES: Record<RevealStrategyId, {
 export declare const REVEAL_QUOTA_BY_ROUND: Record<number, number>;
 export declare function normalizeRevealStrategy(value: string | null | undefined): RevealStrategyId;
 export declare function plannedVotingRounds(playerCount: number, shelterCapacity: number): number;
-export declare function distributeRevealQuotas(rounds: number, strategy?: string | null, total?: number): number[];
-export declare function revealQuotaForRound(round: number, strategy?: string | null, plannedRounds?: number | null): number;
+export declare function forceQuotaSum(quotas: number[], total: number): number[];
+export declare function normalizeCustomRevealPlan(plan: number[] | null | undefined, rounds: number, total?: number): number[];
+export declare function isValidCustomRevealPlan(plan: number[] | null | undefined, rounds: number, total?: number): boolean;
+export declare function distributeRevealQuotas(rounds: number, strategy?: string | null, total?: number, customPlan?: number[] | null): number[];
+export declare function revealQuotaForRound(round: number, strategy?: string | null, plannedRounds?: number | null, customPlan?: number[] | null): number;
 export declare function eliminationsThisRound(input: {
     activeCount: number;
     shelterCapacity: number;

@@ -106,7 +106,16 @@ let MockBotsService = class MockBotsService {
             if (room.status === 'reveal' ||
                 room.status === 'presentation' ||
                 room.status === 'discussion') {
-                const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+                const storedPlan = (() => {
+                    try {
+                        const parsed = JSON.parse(room.revealQuotasJson ?? '[]');
+                        return Array.isArray(parsed) ? parsed : [];
+                    }
+                    catch {
+                        return [];
+                    }
+                })();
+                const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds, storedPlan);
                 const speakers = room.status === 'reveal'
                     ? botPlayers
                     : botPlayers.filter((b) => b.id === room.presentationPlayerId);

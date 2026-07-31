@@ -121,8 +121,10 @@ model Room {
   presentationDurationSec Int      @default(60) @map("presentation_duration_sec")
   votingDurationSec      Int       @default(60) @map("voting_duration_sec")
   revealDurationSec      Int       @default(90) @map("reveal_duration_sec")
-  /// classic | slow | sprint — per-round reveal quotas
+  /// classic | slow | custom — per-round reveal quotas
   revealStrategy         String    @default("classic") @map("reveal_strategy")
+  /// Custom or frozen plan: number[] length = plannedRounds, sum = 7
+  revealQuotasJson       String    @default("[]") @map("reveal_quotas_json")
   /// Quiet time after deal before first speaker (0 = skip)
   prepDurationSec        Int       @default(60) @map("prep_duration_sec")
   presentationPlayerId   String?   @map("presentation_player_id")

@@ -3,6 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.VOTE_RESULT_AUTO_SEC = exports.DEFAULT_REVEAL_STRATEGY = exports.DEFAULT_PREP_SEC = exports.MAX_PREP_SEC = exports.MIN_PREP_SEC = exports.DEFAULT_REVEAL_SEC = exports.MAX_REVEAL_SEC = exports.MIN_REVEAL_SEC = exports.DEFAULT_VOTING_SEC = exports.MAX_VOTING_SEC = exports.MIN_VOTING_SEC = exports.DEFAULT_PRESENTATION_SEC = exports.MAX_PRESENTATION_SEC = exports.MIN_PRESENTATION_SEC = exports.QUOTA_REVEAL_SOURCE = exports.REVEAL_QUOTA_BY_ROUND = exports.REVEAL_STRATEGIES = exports.TOTAL_VOLUNTARY_REVEALS = exports.ALWAYS_HIDDEN_COUNT = void 0;
 exports.normalizeRevealStrategy = normalizeRevealStrategy;
 exports.plannedVotingRounds = plannedVotingRounds;
+exports.forceQuotaSum = forceQuotaSum;
+exports.normalizeCustomRevealPlan = normalizeCustomRevealPlan;
+exports.isValidCustomRevealPlan = isValidCustomRevealPlan;
 exports.distributeRevealQuotas = distributeRevealQuotas;
 exports.revealQuotaForRound = revealQuotaForRound;
 exports.eliminationsThisRound = eliminationsThisRound;
@@ -19,9 +22,9 @@ exports.REVEAL_STRATEGIES = {
         label: 'Ровная',
         description: 'Плоские квоты',
     },
-    sprint: {
-        label: 'Фронт',
-        description: 'Больше в начале',
+    custom: {
+        label: 'Кастом',
+        description: 'Свой план по раундам',
     },
 };
 exports.REVEAL_QUOTA_BY_ROUND = {
@@ -30,8 +33,10 @@ exports.REVEAL_QUOTA_BY_ROUND = {
     3: 2,
 };
 function normalizeRevealStrategy(value) {
-    if (value === 'slow' || value === 'sprint' || value === 'classic')
+    if (value === 'slow' || value === 'custom' || value === 'classic')
         return value;
+    if (value === 'sprint')
+        return 'classic';
     return 'classic';
 }
 function plannedVotingRounds(playerCount, shelterCapacity) {
@@ -55,54 +60,93 @@ function evenDistribute(total, rounds) {
     }
     return quotas;
 }
-function distributeRevealQuotas(rounds, strategy, total = exports.TOTAL_VOLUNTARY_REVEALS) {
+function forceQuotaSum(quotas, total) {
+    if (quotas.length === 0)
+        return [];
+    const q = quotas.map((n) => Math.max(0, Math.floor(Number(n) || 0)));
+    let sum = q.reduce((a, b) => a + b, 0);
+    if (sum === total)
+        return q;
+    if (sum === 0)
+        return evenDistribute(total, q.length);
+    const scaled = q.map((n) => Math.floor((n / sum) * total));
+    let rem = total - scaled.reduce((a, b) => a + b, 0);
+    let i = 0;
+    const guard = q.length * (Math.abs(total) + 2) + 20;
+    while (rem !== 0 && i < guard) {
+        const idx = i % scaled.length;
+        if (rem > 0) {
+            scaled[idx] += 1;
+            rem -= 1;
+        }
+        else if (scaled[idx] > 0) {
+            scaled[idx] -= 1;
+            rem += 1;
+        }
+        i += 1;
+    }
+    return scaled;
+}
+function normalizeCustomRevealPlan(plan, rounds, total = exports.TOTAL_VOLUNTARY_REVEALS) {
+    if (rounds <= 0)
+        return [];
+    const cleaned = (plan ?? []).map((n) => Math.max(0, Math.floor(Number(n) || 0)));
+    if (cleaned.length === 0) {
+        return distributeRevealQuotas(rounds, 'classic', total);
+    }
+    if (cleaned.length === rounds) {
+        return forceQuotaSum(cleaned, total);
+    }
+    if (cleaned.length < rounds) {
+        return forceQuotaSum([...cleaned, ...Array.from({ length: rounds - cleaned.length }, () => 0)], total);
+    }
+    const head = cleaned.slice(0, rounds - 1);
+    const tail = cleaned.slice(rounds - 1).reduce((a, b) => a + b, 0);
+    return forceQuotaSum([...head, tail], total);
+}
+function isValidCustomRevealPlan(plan, rounds, total = exports.TOTAL_VOLUNTARY_REVEALS) {
+    if (!plan || plan.length !== rounds || rounds <= 0)
+        return false;
+    let sum = 0;
+    for (const n of plan) {
+        if (!Number.isInteger(n) || n < 0 || n > total)
+            return false;
+        sum += n;
+    }
+    return sum === total;
+}
+function distributeRevealQuotas(rounds, strategy, total = exports.TOTAL_VOLUNTARY_REVEALS, customPlan) {
     const id = normalizeRevealStrategy(strategy);
     if (rounds <= 0)
         return [];
     if (rounds === 1)
         return [Math.max(0, total)];
+    if (id === 'custom') {
+        return normalizeCustomRevealPlan(customPlan, rounds, total);
+    }
     if (id === 'slow') {
         return evenDistribute(total, rounds);
     }
-    if (id === 'classic') {
-        const quotas = evenDistribute(total, rounds);
-        for (let i = quotas.length - 1; i > 0; i -= 1) {
-            if (quotas[i] > 1) {
-                quotas[i] -= 1;
-                quotas[0] += 1;
-                break;
-            }
-        }
-        return quotas;
-    }
-    if (total <= 0)
-        return Array.from({ length: rounds }, () => 0);
-    if (total < rounds) {
-        return Array.from({ length: rounds }, (_, i) => (i < total ? 1 : 0));
-    }
-    const quotas = Array.from({ length: rounds }, () => 1);
-    let extra = total - rounds;
-    let i = 0;
-    while (extra > 0) {
-        quotas[i] += 1;
-        extra -= 1;
-        if (i + 1 < rounds && quotas[i] > quotas[i + 1] + 1) {
-            i += 1;
-        }
-        else {
-            i = 0;
+    const quotas = evenDistribute(total, rounds);
+    for (let i = quotas.length - 1; i > 0; i -= 1) {
+        if (quotas[i] > 1) {
+            quotas[i] -= 1;
+            quotas[0] += 1;
+            break;
         }
     }
     return quotas;
 }
-function revealQuotaForRound(round, strategy, plannedRounds) {
+function revealQuotaForRound(round, strategy, plannedRounds, customPlan) {
     if (round < 1)
         return 0;
     const rounds = plannedRounds && plannedRounds > 0
         ? plannedRounds
-        :
-            evenDistribute(exports.TOTAL_VOLUNTARY_REVEALS, 3).length;
-    const quotas = distributeRevealQuotas(rounds, strategy);
+        : evenDistribute(exports.TOTAL_VOLUNTARY_REVEALS, 3).length;
+    if (customPlan && customPlan.length === rounds) {
+        return Math.max(0, Math.floor(customPlan[round - 1] ?? 0));
+    }
+    const quotas = distributeRevealQuotas(rounds, strategy, exports.TOTAL_VOLUNTARY_REVEALS, customPlan);
     return quotas[round - 1] ?? 0;
 }
 function eliminationsThisRound(input) {

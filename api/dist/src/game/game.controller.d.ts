@@ -16,16 +16,15 @@ export declare class GameController {
         revealDurationSec?: number;
         prepDurationSec?: number;
         revealStrategy?: string;
+        revealQuotas?: number[];
         packageId?: string;
         discussionDurationSec?: number;
     }): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -46,18 +45,20 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         player: {
             id: string;
-            roomId: string;
-            userId: string;
+            status: string;
             name: string;
             role: string;
-            status: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         };
     }>;
     joinRoom(userId: string, body: {
@@ -66,11 +67,9 @@ export declare class GameController {
     }): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -91,18 +90,20 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         player: {
             id: string;
-            roomId: string;
-            userId: string;
+            status: string;
             name: string;
             role: string;
-            status: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         };
         rejoined: boolean;
     }>;
@@ -264,15 +265,15 @@ export declare class GameController {
         added: number;
         players: {
             id: string;
-            roomId: string;
-            userId: string;
+            status: string;
             name: string;
             role: string;
-            status: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         }[];
     }>;
     runBots(userId: string, roomId: string): Promise<{
@@ -284,25 +285,23 @@ export declare class GameController {
     }): Promise<{
         player: {
             id: string;
-            roomId: string;
-            userId: string;
+            status: string;
             name: string;
             role: string;
-            status: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         };
     }>;
     start(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -323,6 +322,8 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already_started: boolean;
         disaster?: undefined;
@@ -330,11 +331,9 @@ export declare class GameController {
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -355,20 +354,22 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         disaster: {
             id: string;
+            packageId: string;
             title: string;
             description: string;
             isActive: boolean;
-            packageId: string;
         };
         bunker: {
             id: string;
+            packageId: string;
             title: string;
             description: string;
             isActive: boolean;
-            packageId: string;
         };
         already_started?: undefined;
     }>;
@@ -379,12 +380,12 @@ export declare class GameController {
             id: string;
             roomId: string;
             playerId: string;
-            isRevealed: boolean;
-            revealedRound: number | null;
-            revealSource: string;
             characteristicId: string;
             category: string;
+            isRevealed: boolean;
+            revealedRound: number | null;
             revealedAt: Date | null;
+            revealSource: string;
         };
         already_revealed: true;
     } | {
@@ -392,12 +393,12 @@ export declare class GameController {
             id: string;
             roomId: string;
             playerId: string;
-            isRevealed: boolean;
-            revealedRound: number | null;
-            revealSource: string;
             characteristicId: string;
             category: string;
+            isRevealed: boolean;
+            revealedRound: number | null;
             revealedAt: Date | null;
+            revealSource: string;
         };
         already_revealed?: undefined;
     }>;
@@ -412,11 +413,9 @@ export declare class GameController {
     discussion(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -437,16 +436,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -467,17 +466,17 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;
     presentation(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -498,16 +497,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -528,17 +527,17 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;
     advancePresentation(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -559,16 +558,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -589,16 +588,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -619,17 +618,17 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         skipped: true;
     }>;
     pause(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -650,16 +649,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -680,17 +679,17 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;
     resume(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -711,16 +710,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -741,17 +740,17 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;
     startVoting(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -772,16 +771,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -802,6 +801,8 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;
@@ -810,9 +811,9 @@ export declare class GameController {
     }): Promise<{
         vote: {
             id: string;
+            createdAt: Date;
             roomId: string;
             round: number;
-            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
@@ -824,9 +825,9 @@ export declare class GameController {
     } | {
         vote: {
             id: string;
+            createdAt: Date;
             roomId: string;
             round: number;
-            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
@@ -838,11 +839,9 @@ export declare class GameController {
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -863,13 +862,15 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         auto_completed: true;
         vote: {
             id: string;
+            createdAt: Date;
             roomId: string;
             round: number;
-            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
@@ -882,11 +883,9 @@ export declare class GameController {
     completeVoting(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -907,6 +906,8 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
         tie?: undefined;
@@ -916,11 +917,9 @@ export declare class GameController {
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -941,6 +940,8 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         tie: boolean;
         summary: {
@@ -953,11 +954,9 @@ export declare class GameController {
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -978,6 +977,8 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         eliminated_player_id: string;
         eliminated_player_ids: string[];
@@ -991,11 +992,9 @@ export declare class GameController {
     nextRound(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1016,16 +1015,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1046,17 +1045,17 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;
     finish(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1077,16 +1076,16 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already: boolean;
     } | {
         room: {
             id: string;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1107,6 +1106,8 @@ export declare class GameController {
             pauseRemainingMs: number | null;
             votingCandidateIdsJson: string;
             lastVoteSummaryJson: string;
+            createdAt: Date;
+            updatedAt: Date;
         };
         already?: undefined;
     }>;

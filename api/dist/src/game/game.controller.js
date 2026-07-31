@@ -59,6 +59,7 @@ let GameController = class GameController {
                 revealDurationSec: body.revealDurationSec ?? game_rules_1.DEFAULT_REVEAL_SEC,
                 prepDurationSec: body.prepDurationSec ?? game_rules_1.DEFAULT_PREP_SEC,
                 revealStrategy: body.revealStrategy ?? game_rules_1.DEFAULT_REVEAL_STRATEGY,
+                revealQuotas: body.revealQuotas,
                 packageId,
             });
             this.events.emitRoomUpdated(result.room.code);

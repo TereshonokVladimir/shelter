@@ -22,8 +22,11 @@ import {
   pickEliminations,
   plannedVotingRounds,
   distributeRevealQuotas,
+  isValidCustomRevealPlan,
+  normalizeCustomRevealPlan,
   normalizeRevealStrategy,
   QUOTA_REVEAL_SOURCE,
+  TOTAL_VOLUNTARY_REVEALS,
 } from './game.rules'
 import {
   CHARACTERISTIC_CATEGORIES,
@@ -114,6 +117,7 @@ export class GameService {
       revealDurationSec?: number
       prepDurationSec?: number
       revealStrategy?: string
+      revealQuotas?: number[]
       packageId: string
     },
   ) {
@@ -148,9 +152,21 @@ export class GameService {
     if (
       input.revealStrategy != null &&
       input.revealStrategy !== '' &&
+      input.revealStrategy !== 'sprint' &&
       normalizeRevealStrategy(input.revealStrategy) !== input.revealStrategy
     ) {
       throw new GameException('INVALID_REVEAL_STRATEGY')
+    }
+
+    const capacityPreview = calculateShelterCapacity(input.maxPlayers)
+    const roundsPreview = plannedVotingRounds(input.maxPlayers, capacityPreview)
+    let revealQuotasJson = '[]'
+    if (revealStrategy === 'custom') {
+      const plan = (input.revealQuotas ?? []).map((n) => Math.floor(Number(n) || 0))
+      if (!isValidCustomRevealPlan(plan, roundsPreview, TOTAL_VOLUNTARY_REVEALS)) {
+        throw new GameException('INVALID_REVEAL_PLAN')
+      }
+      revealQuotasJson = JSON.stringify(plan)
     }
 
     const contentPack = await this.prisma.contentPackage.findFirst({
@@ -171,6 +187,7 @@ export class GameService {
               revealDurationSec,
               prepDurationSec,
               revealStrategy,
+              revealQuotasJson,
               packageId: contentPack.id,
               discussionDurationSec: presentationDurationSec,
             },
@@ -197,6 +214,7 @@ export class GameService {
                 host_player_id: player.id,
                 package_id: contentPack.id,
                 reveal_strategy: revealStrategy,
+                reveal_quotas: this.parseJson<number[]>(revealQuotasJson, []),
                 prep_duration_sec: prepDurationSec,
               }),
             },
@@ -376,6 +394,11 @@ export class GameService {
       const bunker = shuffle(bunkers)[0]
       const capacity = calculateShelterCapacity(players.length)
       const plannedRounds = plannedVotingRounds(players.length, capacity)
+      const draftQuotas = this.parseJson<number[]>(room.revealQuotasJson, [])
+      const revealPlan =
+        room.revealStrategy === 'custom'
+          ? normalizeCustomRevealPlan(draftQuotas, plannedRounds)
+          : distributeRevealQuotas(plannedRounds, room.revealStrategy)
 
       for (const category of CHARACTERISTIC_CATEGORIES) {
         const pool = await tx.characteristic.findMany({
@@ -431,6 +454,7 @@ export class GameService {
           currentRound: 1,
           shelterCapacity: capacity,
           plannedRounds,
+          revealQuotasJson: JSON.stringify(revealPlan),
           packageId,
           disasterId: disaster.id,
           bunkerId: bunker.id,
@@ -455,7 +479,7 @@ export class GameService {
             package_id: packageId,
             shelter_capacity: capacity,
             planned_rounds: plannedRounds,
-            reveal_plan: distributeRevealQuotas(plannedRounds, room.revealStrategy),
+            reveal_plan: revealPlan,
             player_count: players.length,
             phase_ends_at: phaseEndsAt,
             presentation_player_id: startPresentation ? (order[0] ?? null) : null,
@@ -506,7 +530,7 @@ export class GameService {
   async advanceRevealIfReady(roomId: string) {
     const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } })
     if (room.status !== 'reveal') return { advanced: false }
-    const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+    const quota = this.quotaForRoom(room)
     const allDone = await this.allActiveMetRevealQuota(roomId, room.currentRound, quota)
     if (!allDone) return { advanced: false }
     await this.beginPresentation(roomId)
@@ -521,7 +545,7 @@ export class GameService {
       }
       this.assertNotPaused(room)
 
-      const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+      const quota = this.quotaForRoom(room)
       if (quota <= 0) throw new GameException('INVALID_STATUS')
 
       const me = await tx.player.findFirst({
@@ -790,7 +814,7 @@ export class GameService {
       return
     }
 
-    const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+    const quota = this.quotaForRoom(room)
     if (quota <= 0) return
 
     const active = await this.prisma.player.findMany({
@@ -873,9 +897,11 @@ export class GameService {
       }
     }
 
-    const tie =
-      room.status === 'vote_result' &&
-      this.parseJson<{ tie?: boolean }>(room.lastVoteSummaryJson, {}).tie === true
+    const voteSummary = this.parseJson<{
+      tie?: boolean
+      candidate_ids?: string[]
+    }>(room.lastVoteSummaryJson, {})
+    const tie = room.status === 'vote_result' && voteSummary.tie === true
 
     const allowed =
       room.status === 'prep' ||
@@ -897,7 +923,21 @@ export class GameService {
     })
     if (active.length === 0) throw new GameException('INVALID_STATUS')
 
-    const order = active.map((p) => p.id)
+    // Tie revote: only tied candidates speak — not the full circle again.
+    let order = active.map((p) => p.id)
+    if (tie) {
+      const fromVotingList = this.parseJson<string[]>(room.votingCandidateIdsJson, [])
+      const candidateIds =
+        fromVotingList.length > 0 ? fromVotingList : (voteSummary.candidate_ids ?? [])
+      if (candidateIds.length > 0) {
+        const allowedIds = new Set(candidateIds)
+        order = active.filter((p) => allowedIds.has(p.id)).map((p) => p.id)
+      }
+    }
+    if (order.length === 0) {
+      order = active.map((p) => p.id)
+    }
+
     const first = order[0]
     const phaseEndsAt = new Date(Date.now() + room.presentationDurationSec * 1000)
 
@@ -918,6 +958,7 @@ export class GameService {
         presentation_player_id: first,
         presentation_order: order,
         phase_ends_at: phaseEndsAt,
+        tie_revote: tie,
       },
       updated.currentRound,
     )
@@ -1017,9 +1058,16 @@ export class GameService {
 
     if (!fromPresentation && !fromTie) throw new GameException('INVALID_STATUS')
 
-    // Host may skip remaining speakers — fill everyone's unfinished reveal quota.
+    // Host may skip remaining speakers — fill unfinished reveal quota.
+    // After tie speeches only the short candidate queue spoke; don't autofill the rest.
     if (fromPresentation) {
-      await this.autofillMissingReveals(roomId)
+      const speakerOrder = this.parseJson<string[]>(room.presentationOrderJson, [])
+      const tieSpeeches =
+        lastSummary.tie === true && speakerOrder.length > 0
+      await this.autofillMissingReveals(
+        roomId,
+        tieSpeeches ? speakerOrder : undefined,
+      )
     }
 
     const existingCandidates = this.parseJson<string[]>(room.votingCandidateIdsJson, [])
@@ -1885,6 +1933,45 @@ export class GameService {
     }
   }
 
+  private roomRevealPlan(room: {
+    revealStrategy: string
+    revealQuotasJson?: string | null
+    plannedRounds: number | null
+    maxPlayers: number
+    shelterCapacity: number | null
+    status: string
+  }): number[] {
+    const stored = this.parseJson<number[]>(room.revealQuotasJson ?? '[]', [])
+    const capacity =
+      room.shelterCapacity ?? calculateShelterCapacity(room.maxPlayers)
+    const rounds =
+      room.plannedRounds && room.plannedRounds > 0
+        ? room.plannedRounds
+        : plannedVotingRounds(
+            room.status === 'lobby' ? room.maxPlayers : room.maxPlayers,
+            capacity,
+          )
+
+    if (stored.length > 0) {
+      if (stored.length === rounds) return stored.map((n) => Math.max(0, Math.floor(n)))
+      return normalizeCustomRevealPlan(stored, rounds)
+    }
+    return distributeRevealQuotas(rounds, room.revealStrategy)
+  }
+
+  private quotaForRoom(room: {
+    currentRound: number
+    revealStrategy: string
+    revealQuotasJson?: string | null
+    plannedRounds: number | null
+    maxPlayers: number
+    shelterCapacity: number | null
+    status: string
+  }): number {
+    const plan = this.roomRevealPlan(room)
+    return plan[room.currentRound - 1] ?? 0
+  }
+
   private serializeRoom(
     room: {
     id: string
@@ -1904,6 +1991,7 @@ export class GameService {
     revealDurationSec: number
     prepDurationSec: number
     revealStrategy: string
+    revealQuotasJson?: string | null
     presentationPlayerId: string | null
     presentationOrderJson: string
     phaseEndsAt: Date | null
@@ -1932,6 +2020,7 @@ export class GameService {
             currentRound: room.currentRound,
             strategy: room.revealStrategy,
           })
+    const revealPlan = this.roomRevealPlan(room)
 
     return {
       id: room.id,
@@ -1942,10 +2031,7 @@ export class GameService {
       max_players: room.maxPlayers,
       shelter_capacity: room.shelterCapacity,
       planned_rounds: room.plannedRounds,
-      reveal_plan: distributeRevealQuotas(
-        room.plannedRounds && room.plannedRounds > 0 ? room.plannedRounds : 3,
-        room.revealStrategy,
-      ),
+      reveal_plan: revealPlan,
       package_id: room.packageId,
       disaster_id: room.disasterId,
       bunker_id: room.bunkerId,
@@ -1961,7 +2047,7 @@ export class GameService {
       paused_at: room.pausedAt?.toISOString() ?? null,
       pause_remaining_ms: room.pauseRemainingMs,
       is_paused: Boolean(room.pausedAt),
-      reveal_quota: revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds),
+      reveal_quota: revealPlan[room.currentRound - 1] ?? 0,
       eliminations_this_round: plannedEliminations,
       voting_candidate_ids: this.parseJson<string[]>(room.votingCandidateIdsJson, []),
       last_vote_summary: this.parseJson(room.lastVoteSummaryJson, {}),

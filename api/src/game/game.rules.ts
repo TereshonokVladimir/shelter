@@ -6,7 +6,7 @@ export const ALWAYS_HIDDEN_COUNT = 1
 /** Voluntary reveals across the whole game (8 categories − 1 always hidden). */
 export const TOTAL_VOLUNTARY_REVEALS = 7
 
-export type RevealStrategyId = 'classic' | 'slow' | 'sprint'
+export type RevealStrategyId = 'classic' | 'slow' | 'custom'
 
 export const REVEAL_STRATEGIES: Record<
   RevealStrategyId,
@@ -20,9 +20,9 @@ export const REVEAL_STRATEGIES: Record<
     label: 'Ровная',
     description: 'Плоские квоты',
   },
-  sprint: {
-    label: 'Фронт',
-    description: 'Больше в начале',
+  custom: {
+    label: 'Кастом',
+    description: 'Свой план по раундам',
   },
 }
 
@@ -34,7 +34,9 @@ export const REVEAL_QUOTA_BY_ROUND: Record<number, number> = {
 }
 
 export function normalizeRevealStrategy(value: string | null | undefined): RevealStrategyId {
-  if (value === 'slow' || value === 'sprint' || value === 'classic') return value
+  if (value === 'slow' || value === 'custom' || value === 'classic') return value
+  // Legacy «Фронт» / sprint → classic (plans were nearly identical)
+  if (value === 'sprint') return 'classic'
   return 'classic'
 }
 
@@ -63,51 +65,105 @@ function evenDistribute(total: number, rounds: number): number[] {
   return quotas
 }
 
+/** Force non-negative ints to sum exactly `total`. */
+export function forceQuotaSum(quotas: number[], total: number): number[] {
+  if (quotas.length === 0) return []
+  const q = quotas.map((n) => Math.max(0, Math.floor(Number(n) || 0)))
+  let sum = q.reduce((a, b) => a + b, 0)
+  if (sum === total) return q
+  if (sum === 0) return evenDistribute(total, q.length)
+
+  const scaled = q.map((n) => Math.floor((n / sum) * total))
+  let rem = total - scaled.reduce((a, b) => a + b, 0)
+  let i = 0
+  const guard = q.length * (Math.abs(total) + 2) + 20
+  while (rem !== 0 && i < guard) {
+    const idx = i % scaled.length
+    if (rem > 0) {
+      scaled[idx] += 1
+      rem -= 1
+    } else if (scaled[idx] > 0) {
+      scaled[idx] -= 1
+      rem += 1
+    }
+    i += 1
+  }
+  return scaled
+}
+
+/**
+ * Fit a custom plan to `rounds` seats while keeping TOTAL_VOLUNTARY_REVEALS.
+ * Used when lobby size at start differs from create-form preview.
+ */
+export function normalizeCustomRevealPlan(
+  plan: number[] | null | undefined,
+  rounds: number,
+  total: number = TOTAL_VOLUNTARY_REVEALS,
+): number[] {
+  if (rounds <= 0) return []
+  const cleaned = (plan ?? []).map((n) => Math.max(0, Math.floor(Number(n) || 0)))
+  if (cleaned.length === 0) {
+    return distributeRevealQuotas(rounds, 'classic', total)
+  }
+  if (cleaned.length === rounds) {
+    return forceQuotaSum(cleaned, total)
+  }
+  if (cleaned.length < rounds) {
+    return forceQuotaSum(
+      [...cleaned, ...Array.from({ length: rounds - cleaned.length }, () => 0)],
+      total,
+    )
+  }
+  // Longer plan → keep first (rounds-1) and merge the tail into the last seat
+  const head = cleaned.slice(0, rounds - 1)
+  const tail = cleaned.slice(rounds - 1).reduce((a, b) => a + b, 0)
+  return forceQuotaSum([...head, tail], total)
+}
+
+export function isValidCustomRevealPlan(
+  plan: number[] | null | undefined,
+  rounds: number,
+  total: number = TOTAL_VOLUNTARY_REVEALS,
+): boolean {
+  if (!plan || plan.length !== rounds || rounds <= 0) return false
+  let sum = 0
+  for (const n of plan) {
+    if (!Number.isInteger(n) || n < 0 || n > total) return false
+    sum += n
+  }
+  return sum === total
+}
+
 /**
  * Spread TOTAL_VOLUNTARY_REVEALS across lobby-scaled voting rounds.
  * Prefers ≥1 reveal per round while total ≥ rounds.
+ * For `custom`, pass `customPlan` (or use normalizeCustomRevealPlan first).
  */
 export function distributeRevealQuotas(
   rounds: number,
   strategy?: string | null,
   total: number = TOTAL_VOLUNTARY_REVEALS,
+  customPlan?: number[] | null,
 ): number[] {
   const id = normalizeRevealStrategy(strategy)
   if (rounds <= 0) return []
   if (rounds === 1) return [Math.max(0, total)]
 
+  if (id === 'custom') {
+    return normalizeCustomRevealPlan(customPlan, rounds, total)
+  }
+
   if (id === 'slow') {
     return evenDistribute(total, rounds)
   }
 
-  if (id === 'classic') {
-    const quotas = evenDistribute(total, rounds)
-    // Mild front-load: shift one from the last seat that has >1
-    for (let i = quotas.length - 1; i > 0; i -= 1) {
-      if (quotas[i] > 1) {
-        quotas[i] -= 1
-        quotas[0] += 1
-        break
-      }
-    }
-    return quotas
-  }
-
-  // sprint: stronger front-load, keep ≥1 while possible
-  if (total <= 0) return Array.from({ length: rounds }, () => 0)
-  if (total < rounds) {
-    return Array.from({ length: rounds }, (_, i) => (i < total ? 1 : 0))
-  }
-  const quotas = Array.from({ length: rounds }, () => 1)
-  let extra = total - rounds
-  let i = 0
-  while (extra > 0) {
-    quotas[i] += 1
-    extra -= 1
-    if (i + 1 < rounds && quotas[i] > quotas[i + 1] + 1) {
-      i += 1
-    } else {
-      i = 0
+  // classic (and legacy sprint)
+  const quotas = evenDistribute(total, rounds)
+  for (let i = quotas.length - 1; i > 0; i -= 1) {
+    if (quotas[i] > 1) {
+      quotas[i] -= 1
+      quotas[0] += 1
+      break
     }
   }
   return quotas
@@ -117,14 +173,18 @@ export function revealQuotaForRound(
   round: number,
   strategy?: string | null,
   plannedRounds?: number | null,
+  customPlan?: number[] | null,
 ): number {
   if (round < 1) return 0
   const rounds =
     plannedRounds && plannedRounds > 0
       ? plannedRounds
-      : // Legacy fallback if planned_rounds missing
-        evenDistribute(TOTAL_VOLUNTARY_REVEALS, 3).length
-  const quotas = distributeRevealQuotas(rounds, strategy)
+      : evenDistribute(TOTAL_VOLUNTARY_REVEALS, 3).length
+  // Frozen plan on the room wins when present and sized
+  if (customPlan && customPlan.length === rounds) {
+    return Math.max(0, Math.floor(customPlan[round - 1] ?? 0))
+  }
+  const quotas = distributeRevealQuotas(rounds, strategy, TOTAL_VOLUNTARY_REVEALS, customPlan)
   return quotas[round - 1] ?? 0
 }
 

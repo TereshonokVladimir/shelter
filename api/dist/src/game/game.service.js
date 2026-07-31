@@ -90,8 +90,19 @@ let GameService = class GameService {
         }
         if (input.revealStrategy != null &&
             input.revealStrategy !== '' &&
+            input.revealStrategy !== 'sprint' &&
             (0, game_rules_1.normalizeRevealStrategy)(input.revealStrategy) !== input.revealStrategy) {
             throw new game_types_1.GameException('INVALID_REVEAL_STRATEGY');
+        }
+        const capacityPreview = (0, game_types_1.calculateShelterCapacity)(input.maxPlayers);
+        const roundsPreview = (0, game_rules_1.plannedVotingRounds)(input.maxPlayers, capacityPreview);
+        let revealQuotasJson = '[]';
+        if (revealStrategy === 'custom') {
+            const plan = (input.revealQuotas ?? []).map((n) => Math.floor(Number(n) || 0));
+            if (!(0, game_rules_1.isValidCustomRevealPlan)(plan, roundsPreview, game_rules_1.TOTAL_VOLUNTARY_REVEALS)) {
+                throw new game_types_1.GameException('INVALID_REVEAL_PLAN');
+            }
+            revealQuotasJson = JSON.stringify(plan);
         }
         const contentPack = await this.prisma.contentPackage.findFirst({
             where: { id: input.packageId, isActive: true },
@@ -111,6 +122,7 @@ let GameService = class GameService {
                             revealDurationSec,
                             prepDurationSec,
                             revealStrategy,
+                            revealQuotasJson,
                             packageId: contentPack.id,
                             discussionDurationSec: presentationDurationSec,
                         },
@@ -137,6 +149,7 @@ let GameService = class GameService {
                                 host_player_id: player.id,
                                 package_id: contentPack.id,
                                 reveal_strategy: revealStrategy,
+                                reveal_quotas: this.parseJson(revealQuotasJson, []),
                                 prep_duration_sec: prepDurationSec,
                             }),
                         },
@@ -302,6 +315,10 @@ let GameService = class GameService {
             const bunker = (0, game_types_1.shuffle)(bunkers)[0];
             const capacity = (0, game_types_1.calculateShelterCapacity)(players.length);
             const plannedRounds = (0, game_rules_1.plannedVotingRounds)(players.length, capacity);
+            const draftQuotas = this.parseJson(room.revealQuotasJson, []);
+            const revealPlan = room.revealStrategy === 'custom'
+                ? (0, game_rules_1.normalizeCustomRevealPlan)(draftQuotas, plannedRounds)
+                : (0, game_rules_1.distributeRevealQuotas)(plannedRounds, room.revealStrategy);
             for (const category of game_types_1.CHARACTERISTIC_CATEGORIES) {
                 const pool = await tx.characteristic.findMany({
                     where: { isActive: true, category, packageId },
@@ -350,6 +367,7 @@ let GameService = class GameService {
                     currentRound: 1,
                     shelterCapacity: capacity,
                     plannedRounds,
+                    revealQuotasJson: JSON.stringify(revealPlan),
                     packageId,
                     disasterId: disaster.id,
                     bunkerId: bunker.id,
@@ -373,7 +391,7 @@ let GameService = class GameService {
                         package_id: packageId,
                         shelter_capacity: capacity,
                         planned_rounds: plannedRounds,
-                        reveal_plan: (0, game_rules_1.distributeRevealQuotas)(plannedRounds, room.revealStrategy),
+                        reveal_plan: revealPlan,
                         player_count: players.length,
                         phase_ends_at: phaseEndsAt,
                         presentation_player_id: startPresentation ? (order[0] ?? null) : null,
@@ -417,7 +435,7 @@ let GameService = class GameService {
         const room = await this.prisma.room.findUniqueOrThrow({ where: { id: roomId } });
         if (room.status !== 'reveal')
             return { advanced: false };
-        const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+        const quota = this.quotaForRoom(room);
         const allDone = await this.allActiveMetRevealQuota(roomId, room.currentRound, quota);
         if (!allDone)
             return { advanced: false };
@@ -431,7 +449,7 @@ let GameService = class GameService {
                 throw new game_types_1.GameException('INVALID_STATUS');
             }
             this.assertNotPaused(room);
-            const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+            const quota = this.quotaForRoom(room);
             if (quota <= 0)
                 throw new game_types_1.GameException('INVALID_STATUS');
             const me = await tx.player.findFirst({
@@ -672,7 +690,7 @@ let GameService = class GameService {
             !(0, game_types_1.isPresentationStatus)(room.status)) {
             return;
         }
-        const quota = (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds);
+        const quota = this.quotaForRoom(room);
         if (quota <= 0)
             return;
         const active = await this.prisma.player.findMany({
@@ -742,8 +760,8 @@ let GameService = class GameService {
                 return { room, already: true };
             }
         }
-        const tie = room.status === 'vote_result' &&
-            this.parseJson(room.lastVoteSummaryJson, {}).tie === true;
+        const voteSummary = this.parseJson(room.lastVoteSummaryJson, {});
+        const tie = room.status === 'vote_result' && voteSummary.tie === true;
         const allowed = room.status === 'prep' ||
             room.status === 'reveal' ||
             tie ||
@@ -760,7 +778,18 @@ let GameService = class GameService {
         });
         if (active.length === 0)
             throw new game_types_1.GameException('INVALID_STATUS');
-        const order = active.map((p) => p.id);
+        let order = active.map((p) => p.id);
+        if (tie) {
+            const fromVotingList = this.parseJson(room.votingCandidateIdsJson, []);
+            const candidateIds = fromVotingList.length > 0 ? fromVotingList : (voteSummary.candidate_ids ?? []);
+            if (candidateIds.length > 0) {
+                const allowedIds = new Set(candidateIds);
+                order = active.filter((p) => allowedIds.has(p.id)).map((p) => p.id);
+            }
+        }
+        if (order.length === 0) {
+            order = active.map((p) => p.id);
+        }
         const first = order[0];
         const phaseEndsAt = new Date(Date.now() + room.presentationDurationSec * 1000);
         const updated = await this.prisma.room.update({
@@ -776,6 +805,7 @@ let GameService = class GameService {
             presentation_player_id: first,
             presentation_order: order,
             phase_ends_at: phaseEndsAt,
+            tie_revote: tie,
         }, updated.currentRound);
         return { room: updated };
     }
@@ -846,7 +876,9 @@ let GameService = class GameService {
         if (!fromPresentation && !fromTie)
             throw new game_types_1.GameException('INVALID_STATUS');
         if (fromPresentation) {
-            await this.autofillMissingReveals(roomId);
+            const speakerOrder = this.parseJson(room.presentationOrderJson, []);
+            const tieSpeeches = lastSummary.tie === true && speakerOrder.length > 0;
+            await this.autofillMissingReveals(roomId, tieSpeeches ? speakerOrder : undefined);
         }
         const existingCandidates = this.parseJson(room.votingCandidateIdsJson, []);
         const isRevote = existingCandidates.length > 0 &&
@@ -1594,6 +1626,23 @@ let GameService = class GameService {
             mocks_enabled: (0, mock_bots_config_1.isMockBotsEnabled)(),
         };
     }
+    roomRevealPlan(room) {
+        const stored = this.parseJson(room.revealQuotasJson ?? '[]', []);
+        const capacity = room.shelterCapacity ?? (0, game_types_1.calculateShelterCapacity)(room.maxPlayers);
+        const rounds = room.plannedRounds && room.plannedRounds > 0
+            ? room.plannedRounds
+            : (0, game_rules_1.plannedVotingRounds)(room.status === 'lobby' ? room.maxPlayers : room.maxPlayers, capacity);
+        if (stored.length > 0) {
+            if (stored.length === rounds)
+                return stored.map((n) => Math.max(0, Math.floor(n)));
+            return (0, game_rules_1.normalizeCustomRevealPlan)(stored, rounds);
+        }
+        return (0, game_rules_1.distributeRevealQuotas)(rounds, room.revealStrategy);
+    }
+    quotaForRoom(room) {
+        const plan = this.roomRevealPlan(room);
+        return plan[room.currentRound - 1] ?? 0;
+    }
     serializeRoom(room, opts) {
         const status = (0, game_types_1.normalizeGameStatus)(room.status);
         const lastVoteSummary = this.parseJson(room.lastVoteSummaryJson, {});
@@ -1607,6 +1656,7 @@ let GameService = class GameService {
                 currentRound: room.currentRound,
                 strategy: room.revealStrategy,
             });
+        const revealPlan = this.roomRevealPlan(room);
         return {
             id: room.id,
             code: room.code,
@@ -1616,7 +1666,7 @@ let GameService = class GameService {
             max_players: room.maxPlayers,
             shelter_capacity: room.shelterCapacity,
             planned_rounds: room.plannedRounds,
-            reveal_plan: (0, game_rules_1.distributeRevealQuotas)(room.plannedRounds && room.plannedRounds > 0 ? room.plannedRounds : 3, room.revealStrategy),
+            reveal_plan: revealPlan,
             package_id: room.packageId,
             disaster_id: room.disasterId,
             bunker_id: room.bunkerId,
@@ -1632,7 +1682,7 @@ let GameService = class GameService {
             paused_at: room.pausedAt?.toISOString() ?? null,
             pause_remaining_ms: room.pauseRemainingMs,
             is_paused: Boolean(room.pausedAt),
-            reveal_quota: (0, game_rules_1.revealQuotaForRound)(room.currentRound, room.revealStrategy, room.plannedRounds),
+            reveal_quota: revealPlan[room.currentRound - 1] ?? 0,
             eliminations_this_round: plannedEliminations,
             voting_candidate_ids: this.parseJson(room.votingCandidateIdsJson, []),
             last_vote_summary: this.parseJson(room.lastVoteSummaryJson, {}),

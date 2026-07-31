@@ -19,15 +19,16 @@ export declare class GameService {
         revealDurationSec?: number;
         prepDurationSec?: number;
         revealStrategy?: string;
+        revealQuotas?: number[];
         packageId: string;
     }): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -51,15 +52,15 @@ export declare class GameService {
         };
         player: {
             id: string;
-            roomId: string;
-            userId: string;
             name: string;
-            role: string;
             status: string;
+            role: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         };
     }>;
     joinRoom(userId: string, input: {
@@ -68,11 +69,11 @@ export declare class GameService {
     }): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -96,30 +97,30 @@ export declare class GameService {
         };
         player: {
             id: string;
-            roomId: string;
-            userId: string;
             name: string;
-            role: string;
             status: string;
+            role: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         };
         rejoined: boolean;
     }>;
     setPlayerReady(userId: string, roomId: string, ready: boolean): Promise<{
         player: {
             id: string;
-            roomId: string;
-            userId: string;
             name: string;
-            role: string;
             status: string;
+            role: string;
             isReady: boolean;
             joinedAt: Date;
             lastSeenAt: Date | null;
             eliminatedAt: Date | null;
+            roomId: string;
+            userId: string;
         };
     }>;
     removeLobbyPlayer(userId: string, roomId: string, playerId: string): Promise<{
@@ -128,11 +129,11 @@ export declare class GameService {
     startGame(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -160,11 +161,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -211,12 +212,12 @@ export declare class GameService {
             id: string;
             roomId: string;
             playerId: string;
-            isRevealed: boolean;
-            revealedRound: number | null;
-            revealSource: string;
             characteristicId: string;
             category: string;
+            isRevealed: boolean;
+            revealedRound: number | null;
             revealedAt: Date | null;
+            revealSource: string;
         };
         already_revealed: true;
     } | {
@@ -224,12 +225,12 @@ export declare class GameService {
             id: string;
             roomId: string;
             playerId: string;
-            isRevealed: boolean;
-            revealedRound: number | null;
-            revealSource: string;
             characteristicId: string;
             category: string;
+            isRevealed: boolean;
+            revealedRound: number | null;
             revealedAt: Date | null;
+            revealSource: string;
         };
         already_revealed?: undefined;
     }>;
@@ -247,11 +248,11 @@ export declare class GameService {
     }): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -277,11 +278,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -308,11 +309,11 @@ export declare class GameService {
     advanceToDiscussion(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -338,11 +339,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -372,11 +373,11 @@ export declare class GameService {
     }): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -402,11 +403,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -432,11 +433,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -463,11 +464,11 @@ export declare class GameService {
     beginVoting(roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -493,11 +494,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -524,11 +525,11 @@ export declare class GameService {
     startVoting(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -554,11 +555,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -585,9 +586,9 @@ export declare class GameService {
     submitVote(userId: string, roomId: string, targetPlayerId: string): Promise<{
         vote: {
             id: string;
+            createdAt: Date;
             roomId: string;
             round: number;
-            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
@@ -599,9 +600,9 @@ export declare class GameService {
     } | {
         vote: {
             id: string;
+            createdAt: Date;
             roomId: string;
             round: number;
-            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
@@ -613,11 +614,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -642,9 +643,9 @@ export declare class GameService {
         auto_completed: true;
         vote: {
             id: string;
+            createdAt: Date;
             roomId: string;
             round: number;
-            createdAt: Date;
             voterId: string;
             targetPlayerId: string;
         };
@@ -657,11 +658,11 @@ export declare class GameService {
     resolveVotingIfReady(roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -691,11 +692,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -728,11 +729,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -767,11 +768,11 @@ export declare class GameService {
     completeVoting(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -801,11 +802,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -838,11 +839,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -876,11 +877,11 @@ export declare class GameService {
     resolveVoting(roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -910,11 +911,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -947,11 +948,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -986,11 +987,11 @@ export declare class GameService {
     nextRevealRound(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1016,11 +1017,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1047,11 +1048,11 @@ export declare class GameService {
     advanceToNextRound(roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1077,11 +1078,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1108,11 +1109,11 @@ export declare class GameService {
     setPaused(userId: string, roomId: string, paused: boolean): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1138,11 +1139,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1171,11 +1172,11 @@ export declare class GameService {
     finishGame(userId: string, roomId: string): Promise<{
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1201,11 +1202,11 @@ export declare class GameService {
     } | {
         room: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             code: string;
             hostPlayerId: string | null;
+            status: string;
             currentRound: number;
             maxPlayers: number;
             shelterCapacity: number | null;
@@ -1378,6 +1379,8 @@ export declare class GameService {
         };
         mocks_enabled: boolean;
     } | null>;
+    private roomRevealPlan;
+    private quotaForRoom;
     private serializeRoom;
     private serializePlayer;
     private assertUniquePlayerName;

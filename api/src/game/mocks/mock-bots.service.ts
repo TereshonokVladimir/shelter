@@ -117,7 +117,20 @@ export class MockBotsService {
         room.status === 'presentation' ||
         room.status === 'discussion'
       ) {
-        const quota = revealQuotaForRound(room.currentRound, room.revealStrategy, room.plannedRounds)
+        const storedPlan = (() => {
+          try {
+            const parsed = JSON.parse(room.revealQuotasJson ?? '[]') as unknown
+            return Array.isArray(parsed) ? (parsed as number[]) : []
+          } catch {
+            return [] as number[]
+          }
+        })()
+        const quota = revealQuotaForRound(
+          room.currentRound,
+          room.revealStrategy,
+          room.plannedRounds,
+          storedPlan,
+        )
         const speakers =
           room.status === 'reveal'
             ? botPlayers

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,7 @@ import {
   REVEAL_STRATEGIES,
   TOTAL_VOLUNTARY_REVEALS,
   distributeRevealQuotas,
+  normalizeCustomRevealPlan,
   plannedVotingRounds,
   type RevealStrategyId,
 } from '@/lib/constants'
@@ -97,15 +98,34 @@ export function CreateRoomForm() {
     register,
     control,
     handleSubmit,
-    watch,
+    setValue,
     formState: { errors },
   } = form
 
-  const strategyId = watch('revealStrategy') as RevealStrategyId
-  const maxPlayersPreview = watch('maxPlayers')
+  const strategyId = useWatch({ control, name: 'revealStrategy' }) as RevealStrategyId
+  const maxPlayersPreview = useWatch({ control, name: 'maxPlayers' })
+  const revealQuotas = useWatch({ control, name: 'revealQuotas' }) ?? []
   const capacityPreview = calculateShelterCapacity(maxPlayersPreview)
   const roundsPreview = plannedVotingRounds(maxPlayersPreview, capacityPreview)
-  const planPreview = distributeRevealQuotas(roundsPreview, strategyId)
+  const planPreview =
+    strategyId === 'custom'
+      ? revealQuotas
+      : distributeRevealQuotas(roundsPreview, strategyId)
+  const customSum = revealQuotas.reduce((a, b) => a + b, 0)
+  const customSumOk = customSum === TOTAL_VOLUNTARY_REVEALS
+
+  useEffect(() => {
+    const current = form.getValues('revealQuotas') ?? []
+    const next =
+      strategyId === 'custom'
+        ? normalizeCustomRevealPlan(current, roundsPreview)
+        : distributeRevealQuotas(roundsPreview, strategyId)
+    const same =
+      next.length === current.length && next.every((n, i) => n === current[i])
+    if (!same) {
+      setValue('revealQuotas', next, { shouldValidate: strategyId === 'custom' })
+    }
+  }, [roundsPreview, strategyId, setValue, form])
 
   return (
     <div className="bunker-panel overflow-hidden">
@@ -236,7 +256,15 @@ export function CreateRoomForm() {
                 value={[field.value]}
                 onValueChange={(values) => {
                   const next = values[0] as RevealStrategyId | undefined
-                  if (next) field.onChange(next)
+                  if (!next) return
+                  field.onChange(next)
+                  if (next === 'custom') {
+                    setValue(
+                      'revealQuotas',
+                      distributeRevealQuotas(roundsPreview, 'classic'),
+                      { shouldValidate: true },
+                    )
+                  }
                 }}
                 disabled={pending}
                 spacing={2}
@@ -268,6 +296,64 @@ export function CreateRoomForm() {
             )}
           />
           <FieldError>{errors.revealStrategy?.message}</FieldError>
+
+          {strategyId === 'custom' ? (
+            <div className="flex flex-col gap-2 rounded-md border border-amber-900/35 bg-stone-950/40 p-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs text-stone-400">
+                  Квота на каждый раунд голосования
+                </p>
+                <p
+                  className={cn(
+                    'font-mono text-[11px]',
+                    customSumOk ? 'text-amber-200/80' : 'text-rose-300/90',
+                  )}
+                >
+                  Σ {customSum}/{TOTAL_VOLUNTARY_REVEALS}
+                </p>
+              </div>
+              <div
+                className={cn(
+                  'grid gap-2',
+                  roundsPreview <= 3
+                    ? 'grid-cols-2 sm:grid-cols-3'
+                    : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
+                )}
+              >
+                {Array.from({ length: roundsPreview }, (_, index) => (
+                  <Field
+                    key={`quota-${roundsPreview}-${index}`}
+                    data-invalid={Boolean(errors.revealQuotas)}
+                    className="gap-1"
+                  >
+                    <LabelWithHint
+                      htmlFor={`revealQuota-${index}`}
+                      label={`Раунд ${index + 1}`}
+                      hint="Сколько характеристик каждый активный игрок должен раскрыть в этом раунде."
+                      limits={`0–${TOTAL_VOLUNTARY_REVEALS}`}
+                    />
+                    <Controller
+                      control={control}
+                      name={`revealQuotas.${index}`}
+                      render={({ field }) => (
+                        <NumberStepper
+                          id={`revealQuota-${index}`}
+                          value={field.value ?? 0}
+                          onChange={field.onChange}
+                          min={0}
+                          max={TOTAL_VOLUNTARY_REVEALS}
+                          disabled={pending}
+                          aria-invalid={Boolean(errors.revealQuotas)}
+                          className="w-full"
+                        />
+                      )}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <FieldError>{errors.revealQuotas?.message}</FieldError>
+            </div>
+          ) : null}
         </div>
 
         {/* Timers */}

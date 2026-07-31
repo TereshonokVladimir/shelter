@@ -40,6 +40,11 @@ describe('plannedVotingRounds + reveal plan', () => {
     expect(plan.reduce((a, b) => a + b, 0)).toBe(7)
   })
 
+  it('uses custom plan quotas as-is when length matches', () => {
+    const custom = [3, 0, 2, 2]
+    expect(distributeRevealQuotas(4, 'custom', 7, custom)).toEqual(custom)
+  })
+
   it('always eliminates one while over capacity', () => {
     expect(
       eliminationsThisRound({

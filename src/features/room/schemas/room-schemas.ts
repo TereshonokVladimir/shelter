@@ -14,9 +14,16 @@ import {
   MIN_PREP_SEC,
   MIN_VOTING_SEC,
   REVEAL_STRATEGIES,
+  TOTAL_VOLUNTARY_REVEALS,
+  distributeRevealQuotas,
+  isValidCustomRevealPlan,
+  plannedVotingRounds,
   type RevealStrategyId,
 } from '@/lib/constants'
-import { normalizeRoomCode } from '@/features/game/utils/game-logic'
+import {
+  calculateShelterCapacity,
+  normalizeRoomCode,
+} from '@/features/game/utils/game-logic'
 
 export const playerNameSchema = z
   .string()
@@ -36,31 +43,45 @@ const revealStrategyIds = Object.keys(REVEAL_STRATEGIES) as [
   ...RevealStrategyId[],
 ]
 
-export const createRoomSchema = z.object({
-  name: playerNameSchema,
-  maxPlayers: z
-    .number()
-    .int()
-    .min(MIN_PLAYERS, `Минимум ${MIN_PLAYERS} игроков`)
-    .max(MAX_PLAYERS_LIMIT, `Максимум ${MAX_PLAYERS_LIMIT} игроков`),
-  presentationDurationSec: z
-    .number()
-    .int()
-    .min(MIN_PRESENTATION_SEC, `Минимум ${MIN_PRESENTATION_SEC} сек`)
-    .max(MAX_PRESENTATION_SEC, `Максимум ${MAX_PRESENTATION_SEC} сек`),
-  votingDurationSec: z
-    .number()
-    .int()
-    .min(MIN_VOTING_SEC, `Минимум ${MIN_VOTING_SEC} сек`)
-    .max(MAX_VOTING_SEC, `Максимум ${MAX_VOTING_SEC} сек`),
-  prepDurationSec: z
-    .number()
-    .int()
-    .min(MIN_PREP_SEC, `Минимум ${MIN_PREP_SEC} сек`)
-    .max(MAX_PREP_SEC, `Максимум ${MAX_PREP_SEC} сек`),
-  revealStrategy: z.enum(revealStrategyIds),
-  packageId: z.string().min(1, 'Выберите пакет контента'),
-})
+export const createRoomSchema = z
+  .object({
+    name: playerNameSchema,
+    maxPlayers: z
+      .number()
+      .int()
+      .min(MIN_PLAYERS, `Минимум ${MIN_PLAYERS} игроков`)
+      .max(MAX_PLAYERS_LIMIT, `Максимум ${MAX_PLAYERS_LIMIT} игроков`),
+    presentationDurationSec: z
+      .number()
+      .int()
+      .min(MIN_PRESENTATION_SEC, `Минимум ${MIN_PRESENTATION_SEC} сек`)
+      .max(MAX_PRESENTATION_SEC, `Максимум ${MAX_PRESENTATION_SEC} сек`),
+    votingDurationSec: z
+      .number()
+      .int()
+      .min(MIN_VOTING_SEC, `Минимум ${MIN_VOTING_SEC} сек`)
+      .max(MAX_VOTING_SEC, `Максимум ${MAX_VOTING_SEC} сек`),
+    prepDurationSec: z
+      .number()
+      .int()
+      .min(MIN_PREP_SEC, `Минимум ${MIN_PREP_SEC} сек`)
+      .max(MAX_PREP_SEC, `Максимум ${MAX_PREP_SEC} сек`),
+    revealStrategy: z.enum(revealStrategyIds),
+    revealQuotas: z.array(z.number().int().min(0).max(TOTAL_VOLUNTARY_REVEALS)),
+    packageId: z.string().min(1, 'Выберите пакет контента'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.revealStrategy !== 'custom') return
+    const capacity = calculateShelterCapacity(data.maxPlayers)
+    const rounds = plannedVotingRounds(data.maxPlayers, capacity)
+    if (!isValidCustomRevealPlan(data.revealQuotas, rounds, TOTAL_VOLUNTARY_REVEALS)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['revealQuotas'],
+        message: `Сумма по ${rounds} раундам должна быть ${TOTAL_VOLUNTARY_REVEALS}`,
+      })
+    }
+  })
 
 export const joinRoomSchema = z.object({
   code: roomCodeSchema,
@@ -70,6 +91,9 @@ export const joinRoomSchema = z.object({
 export type CreateRoomInput = z.infer<typeof createRoomSchema>
 export type JoinRoomInput = z.infer<typeof joinRoomSchema>
 
+const defaultCapacity = calculateShelterCapacity(DEFAULT_MAX_PLAYERS)
+const defaultRounds = plannedVotingRounds(DEFAULT_MAX_PLAYERS, defaultCapacity)
+
 export const createRoomDefaults: CreateRoomInput = {
   name: '',
   maxPlayers: DEFAULT_MAX_PLAYERS,
@@ -77,5 +101,6 @@ export const createRoomDefaults: CreateRoomInput = {
   votingDurationSec: DEFAULT_VOTING_SEC,
   prepDurationSec: DEFAULT_PREP_SEC,
   revealStrategy: DEFAULT_REVEAL_STRATEGY,
+  revealQuotas: distributeRevealQuotas(defaultRounds, 'classic'),
   packageId: '',
 }

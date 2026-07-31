@@ -20,12 +20,24 @@ export async function createRoomRequest(input: {
   votingDurationSec: number
   prepDurationSec: number
   revealStrategy: string
+  revealQuotas?: number[]
   packageId: string
 }) {
   return toResult(
     apiFetch<{ room: { id: string; code: string }; player: { id: string } }>('/api/rooms', {
       method: 'POST',
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        name: input.name,
+        maxPlayers: input.maxPlayers,
+        presentationDurationSec: input.presentationDurationSec,
+        votingDurationSec: input.votingDurationSec,
+        prepDurationSec: input.prepDurationSec,
+        revealStrategy: input.revealStrategy,
+        packageId: input.packageId,
+        ...(input.revealStrategy === 'custom' && input.revealQuotas
+          ? { revealQuotas: input.revealQuotas }
+          : {}),
+      }),
     }),
   )
 }

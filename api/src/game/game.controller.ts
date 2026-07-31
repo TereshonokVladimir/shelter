@@ -56,6 +56,7 @@ export class GameController {
       revealDurationSec?: number
       prepDurationSec?: number
       revealStrategy?: string
+      revealQuotas?: number[]
       packageId?: string
       /** @deprecated prefer presentationDurationSec */
       discussionDurationSec?: number
@@ -78,6 +79,7 @@ export class GameController {
         revealDurationSec: body.revealDurationSec ?? DEFAULT_REVEAL_SEC,
         prepDurationSec: body.prepDurationSec ?? DEFAULT_PREP_SEC,
         revealStrategy: body.revealStrategy ?? DEFAULT_REVEAL_STRATEGY,
+        revealQuotas: body.revealQuotas,
         packageId,
       })
       this.events.emitRoomUpdated(result.room.code)
